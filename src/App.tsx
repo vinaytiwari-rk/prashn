@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ClipboardList,
   Clock,
+  Compass,
   MapPin,
   Moon,
   Printer,
   Sliders,
+  Sparkles,
   Sun,
   X,
 } from 'lucide-react';
@@ -309,6 +312,14 @@ export const App: React.FC = () => {
     });
   };
 
+  const navigateToPage = (page: AppPage) => {
+    setShowSettings(false);
+    setActivePage(page);
+    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="app-shell">
       {/* Clean Header */}
@@ -369,7 +380,7 @@ export const App: React.FC = () => {
             key={key}
             type="button"
             className={`tab-btn ${activePage === key ? 'active' : ''}`}
-            onClick={() => setActivePage(key)}
+            onClick={() => navigateToPage(key)}
           >
             {label}
           </button>
@@ -466,15 +477,15 @@ export const App: React.FC = () => {
             onRemoveQuestion={handleRemoveQuestion}
             onUpdateActiveQuestion={updateActiveQuestion}
             analysis={analysis}
-            onGoToCalculations={() => setActivePage('calculations')}
-            onGoToPredictions={() => setActivePage('predictions')}
+            onGoToCalculations={() => navigateToPage('calculations')}
+            onGoToPredictions={() => navigateToPage('predictions')}
           />
         ) : activePage === 'calculations' ? (
           <CalculationsPage
             analysis={analysis}
             totalQuestions={questions.length}
-            onBackToBasicDetails={() => setActivePage('basic')}
-            onGoToPredictions={() => setActivePage('predictions')}
+            onBackToBasicDetails={() => navigateToPage('basic')}
+            onGoToPredictions={() => navigateToPage('predictions')}
           />
         ) : (
           <PredictionsPage
@@ -482,11 +493,55 @@ export const App: React.FC = () => {
             sessionSummaries={sessionSummaries}
             activeQuestionId={activeQuestion.id}
             onSelectQuestion={(id) => setActiveId(id)}
-            onBackToBasicDetails={() => setActivePage('basic')}
-            onBackToCalculations={() => setActivePage('calculations')}
+            onBackToBasicDetails={() => navigateToPage('basic')}
+            onBackToCalculations={() => navigateToPage('calculations')}
           />
         )}
       </main>
+
+      {/* Mobile App Bottom Navigation Menu */}
+      <nav className="mobile-bottom-nav no-print" aria-label="Bottom Navigation">
+        <button
+          type="button"
+          className={`mobile-nav-item ${activePage === 'basic' && !showSettings ? 'active' : ''}`}
+          onClick={() => navigateToPage('basic')}
+        >
+          <span className="mobile-nav-icon-pill">
+            <ClipboardList size={19} />
+          </span>
+          <span>Details</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-nav-item ${activePage === 'calculations' && !showSettings ? 'active' : ''}`}
+          onClick={() => navigateToPage('calculations')}
+        >
+          <span className="mobile-nav-icon-pill">
+            <Compass size={19} />
+          </span>
+          <span>Chart &amp; KP</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-nav-item ${activePage === 'predictions' && !showSettings ? 'active' : ''}`}
+          onClick={() => navigateToPage('predictions')}
+        >
+          <span className="mobile-nav-icon-pill">
+            <Sparkles size={19} />
+          </span>
+          <span>Predictions</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-nav-item ${showSettings ? 'active' : ''}`}
+          onClick={() => setShowSettings((v) => !v)}
+        >
+          <span className="mobile-nav-icon-pill">
+            <Sliders size={19} />
+          </span>
+          <span>Settings</span>
+        </button>
+      </nav>
 
       {/* Clean Settings Modal */}
       {showSettings && (

@@ -1323,14 +1323,75 @@ a {
   color: var(--text);
 }
 
-@media (max-width: 680px) {
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
   .app-shell {
-    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   }
 
   .top-bar {
     gap: 10px;
     padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+
+  .workbench-tabs {
+    display: none;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    background: var(--surface);
+    border-top: 1px solid var(--border-strong);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.08);
+    padding: 6px 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 52px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 12px;
+    padding: 4px 2px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .mobile-nav-icon-pill {
+    width: 50px;
+    height: 28px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .mobile-nav-item.active .mobile-nav-icon-pill {
+    background: var(--accent-bg);
+    color: var(--accent);
   }
 
   .brand-mark {
@@ -1363,31 +1424,6 @@ a {
     min-width: 40px;
     min-height: 40px;
     justify-content: center;
-  }
-
-  .workbench-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-    position: sticky;
-    top: 0;
-    z-index: 35;
-    background: var(--bg);
-    padding: 8px 0;
-    margin: 10px 0 12px;
-  }
-
-  .tab-btn {
-    min-height: 44px;
-    padding: 6px 6px;
-    font-size: 0.75rem;
-    line-height: 1.25;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-color: var(--border);
-    background: var(--surface);
   }
 
   .panel {
