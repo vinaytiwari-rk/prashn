@@ -22,12 +22,13 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
   onGoToGuide,
   onGoToPredictions,
 }) => {
-  const { chart, kp, timing, classical } = analysis;
+  const { chart, kp, timing, classical, tajika, kerala } = analysis;
   const lms = chart.panchanga.lunarMicroStates;
   const topicMeta = getTopicMeta(chart.input.category);
   const kpEval = kp.domainEvaluation;
   const report = buildSimpleHoraryReport(analysis);
   const methodMeta = CASTING_METHOD_OPTIONS.find((m) => m.id === chart.input.castingMode);
+  const isKpMode = chart.input.castingMode === 'kp_horary';
 
   const toneBadgeClass = (tone: 'good' | 'warn' | 'bad' | 'info') =>
     tone === 'good' ? 'good' : tone === 'bad' ? 'bad' : tone === 'info' ? 'muted' : 'warn';
@@ -96,11 +97,15 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
       {/* Side-by-Side North Indian Rasi Chart (D-1) & KP Bhava Chart */}
       <VedicCharts analysis={analysis} />
 
-      {/* Essential Chart & KP Summary */}
+      {/* Essential Chart Summary (Focused on Selected Calculation Method) */}
       <div className="panel">
         <div className="panel-header-inline">
           <Compass size={17} />
-          <h3>Essential Chart &amp; KP Horary Summary</h3>
+          <h3>
+            {isKpMode
+              ? 'Essential Chart & KP Horary Summary'
+              : `Essential Chart Summary (${methodMeta?.shortTag ?? 'Selected Method'})`}
+          </h3>
         </div>
         <div className="data-kv-grid">
           <div>
@@ -121,21 +126,38 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
                   : ` (Rotated Reference)`
                 : chart.prashna108Info
                 ? ` (Num ${chart.prashna108Info.number} → ${chart.prashna108Info.navamsaSignName} D-9)`
-                : chart.input.castingMode === 'kp_horary'
+                : isKpMode
                 ? ` (KP #${chart.input.kpNumber})`
-                : ' (Question Time Lagna)'}
+                : ` (${methodMeta?.shortTag ?? 'Question Time Lagna'})`}
             </strong>
           </div>
-          <div>
-            <span>Primary KP Query Cusp &amp; Sub-Lord</span>
-            <strong>
-              Cusp {kpEval.primaryCusp} → Sub-Lord {kpEval.cuspSubLord} (Star: {kpEval.starLordOfCsl})
-            </strong>
-          </div>
-          <div>
-            <span>Clean KP Ruling Planets</span>
-            <strong>{kp.cleanRulingPlanets.join(', ') || 'Direct trigger awaited'}</strong>
-          </div>
+          {isKpMode ? (
+            <>
+              <div>
+                <span>Primary KP Query Cusp &amp; Sub-Lord</span>
+                <strong>
+                  Cusp {kpEval.primaryCusp} → Sub-Lord {kpEval.cuspSubLord} (Star: {kpEval.starLordOfCsl})
+                </strong>
+              </div>
+              <div>
+                <span>Clean KP Ruling Planets</span>
+                <strong>{kp.cleanRulingPlanets.join(', ') || 'Direct trigger awaited'}</strong>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <span>Lagna Lord &amp; Work-House Lord</span>
+                <strong>
+                  1L: {tajika.lagnaLord} · Focus {tajika.karyeshaHouse}L: {tajika.karyesha} ({tajika.verdictLabel})
+                </strong>
+              </div>
+              <div>
+                <span>Selected Method Basis</span>
+                <strong>{chart.specialMethodInfo?.summary ?? methodMeta?.label ?? 'Question Time'}</strong>
+              </div>
+            </>
+          )}
           <div>
             <span>Moon Sign &amp; Nakshatra</span>
             <strong>
@@ -199,13 +221,19 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
         </div>
       </div>
 
-      {/* Unified Planetary Positions & KP Lords Table */}
+      {/* Unified Planetary Positions Table */}
       <div className="panel">
         <div className="panel-header-row" style={{ marginBottom: 8 }}>
           <div>
-            <h3>Planetary Positions, KP Bhava Houses &amp; Sub-Lords</h3>
+            <h3>
+              {isKpMode
+                ? 'Planetary Positions, KP Bhava Houses & Sub-Lords'
+                : 'Planetary Positions & Chart Meanings'}
+            </h3>
             <p className="panel-hint" style={{ marginBottom: 0 }}>
-              Combined zodiac positions, Rasi vs KP cuspal houses, Sign / Star / Sub lords, KP house significations, and colour-coded chart meanings.
+              {isKpMode
+                ? 'Zodiac positions, Rasi vs KP cuspal houses, Sign / Star / Sub lords, KP house significations, and colour-coded meanings.'
+                : 'Zodiac signs, degrees, houses, nakshatra star lord, strength, and colour-coded chart meanings.'}
             </p>
           </div>
         </div>
@@ -215,9 +243,9 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
               <tr>
                 <th>Planet</th>
                 <th>Sign &amp; Degree</th>
-                <th>Rasi / KP House</th>
-                <th>Star / Sub / Sub-Sub Lord</th>
-                <th>Signifies (KP Houses)</th>
+                <th>{isKpMode ? 'Rasi / KP House' : 'House'}</th>
+                <th>{isKpMode ? 'Star / Sub / Sub-Sub Lord' : 'Nakshatra (Star Lord)'}</th>
+                {isKpMode && <th>Signifies (KP Houses)</th>}
                 <th>Strength &amp; Motion</th>
                 <th>Plain Chart Meaning</th>
               </tr>
@@ -231,11 +259,24 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
                     <td><strong>{p.id}</strong></td>
                     <td className="mono">{p.signName} {p.dmsInSign}</td>
                     <td className="mono">
-                      <strong>Rasi H{p.houseWholeSign}</strong> · KP H{kpRow?.kpHouse ?? p.houseWholeSign}
+                      <strong>H{p.houseWholeSign}</strong>
+                      {isKpMode ? ` · KP H${kpRow?.kpHouse ?? p.houseWholeSign}` : ''}
                       {topicMeta.focusHouses.includes(p.houseWholeSign) ? ' ★' : ''}
                     </td>
-                    <td className="mono">{p.starLord} / <strong>{p.subLord}</strong> / {p.subSubLord}</td>
-                    <td className="mono">{kpRow?.signifiesHouses.join(', ') || '—'}</td>
+                    <td className="mono">
+                      {isKpMode ? (
+                        <>
+                          {p.starLord} / <strong>{p.subLord}</strong> / {p.subSubLord}
+                        </>
+                      ) : (
+                        <>
+                          {p.nakshatraName} ({p.starLord})
+                        </>
+                      )}
+                    </td>
+                    {isKpMode && (
+                      <td className="mono">{kpRow?.signifiesHouses.join(', ') || '—'}</td>
+                    )}
                     <td>
                       <span className={`pill pill-${p.dignity.toLowerCase().replace(/\s+/g, '-')}`}>
                         {p.dignity}
@@ -262,99 +303,147 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
         </div>
       </div>
 
-      {/* KP Horary House Cusps (1-12) & KP Significators */}
-      <div className="two-col-grid">
-        <div className="panel">
-          <div className="panel-header-inline">
-            <Sparkles size={17} />
-            <h3>KP 12 House Cusps &amp; Sub-Lords</h3>
+      {/* Method-Specific Calculation Panel (KP Cusps ONLY for KP Horary; Vedic/Method tables for others) */}
+      {isKpMode ? (
+        <div className="two-col-grid">
+          <div className="panel">
+            <div className="panel-header-inline">
+              <Sparkles size={17} />
+              <h3>KP 12 House Cusps &amp; Sub-Lords</h3>
+            </div>
+            <div className="table-scroll">
+              <table className="pro-table compact">
+                <thead>
+                  <tr>
+                    <th>Cusp</th>
+                    <th>Sign &amp; Degree</th>
+                    <th>Sign / Star / Sub</th>
+                    <th>All Significators (A–D)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kp.cusps.map((c) => {
+                    const sigRow = kp.houseSignificators.find((s) => s.house === c.house);
+                    const isFocus = c.house === kpEval.primaryCusp;
+                    return (
+                      <tr key={c.house} className={isFocus ? 'row-active' : ''}>
+                        <td className="mono">
+                          <strong>C{c.house}</strong>
+                          {isFocus ? ' ★' : ''}
+                        </td>
+                        <td className="mono">{c.signName} {c.dmsInSign}</td>
+                        <td className="mono">
+                          {c.signLord} / {c.starLord} / <strong>{c.subLord}</strong>
+                        </td>
+                        <td style={{ whiteSpace: 'normal', fontSize: '0.78rem' }}>
+                          {sigRow?.all.join(', ') || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="table-scroll">
-            <table className="pro-table compact">
-              <thead>
-                <tr>
-                  <th>Cusp</th>
-                  <th>Sign &amp; Degree</th>
-                  <th>Sign / Star / Sub</th>
-                  <th>All Significators (A–D)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kp.cusps.map((c) => {
-                  const sigRow = kp.houseSignificators.find((s) => s.house === c.house);
-                  const isFocus = c.house === kpEval.primaryCusp;
-                  return (
-                    <tr key={c.house} className={isFocus ? 'row-active' : ''}>
-                      <td className="mono">
-                        <strong>C{c.house}</strong>
-                        {isFocus ? ' ★' : ''}
-                      </td>
-                      <td className="mono">{c.signName} {c.dmsInSign}</td>
-                      <td className="mono">
-                        {c.signLord} / {c.starLord} / <strong>{c.subLord}</strong>
-                      </td>
-                      <td style={{ whiteSpace: 'normal', fontSize: '0.78rem' }}>
-                        {sigRow?.all.join(', ') || '—'}
+
+          <div className="panel">
+            <div className="panel-header-inline">
+              <Sparkles size={17} />
+              <h3>KP Ruling Planets &amp; Query Cusp Check</h3>
+            </div>
+            <div className="sub-badges-row" style={{ marginBottom: 10 }}>
+              <span className="info-badge">
+                <strong>KP Ayanamsa:</strong> {kp.kpAyanamsaDms}
+              </span>
+              <span className="info-badge">
+                <strong>KP Verdict:</strong> {kpEval.verdict} ({kpEval.scorePct}%)
+              </span>
+              <span className="info-badge">
+                <strong>Motion Rule:</strong> {kpEval.retroMatrixCase}
+              </span>
+            </div>
+
+            <div className="table-scroll" style={{ marginBottom: 10 }}>
+              <table className="pro-table compact">
+                <thead>
+                  <tr>
+                    <th>Ruling Factor</th>
+                    <th>Planet</th>
+                    <th>Star / Sub</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kp.rulingPlanets.map((rp) => (
+                    <tr key={rp.role}>
+                      <td>{rp.role}</td>
+                      <td><strong>{rp.planet}</strong></td>
+                      <td className="mono">{rp.starLordOfPlanet} / {rp.subLordOfPlanet}</td>
+                      <td>
+                        {rp.flaggedByRetrograde ? (
+                          <span className="flag-tag warn">Retrograde</span>
+                        ) : (
+                          <span className="flag-tag good">Active</span>
+                        )}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="body-lead" style={{ margin: 0, fontSize: '0.86rem' }}>
+              {kpEval.explanation}
+            </p>
           </div>
         </div>
-
+      ) : (
         <div className="panel">
           <div className="panel-header-inline">
             <Sparkles size={17} />
-            <h3>KP Ruling Planets &amp; Query Cusp Check</h3>
+            <h3>{methodMeta?.shortTag ?? 'Method'} — Active Calculation Signals</h3>
           </div>
-          <div className="sub-badges-row" style={{ marginBottom: 10 }}>
-            <span className="info-badge">
-              <strong>KP Ayanamsa:</strong> {kp.kpAyanamsaDms}
-            </span>
-            <span className="info-badge">
-              <strong>KP Verdict:</strong> {kpEval.verdict} ({kpEval.scorePct}%)
-            </span>
-            <span className="info-badge">
-              <strong>Motion Rule:</strong> {kpEval.retroMatrixCase}
-            </span>
-          </div>
-
-          <div className="table-scroll" style={{ marginBottom: 10 }}>
-            <table className="pro-table compact">
-              <thead>
-                <tr>
-                  <th>Ruling Factor</th>
-                  <th>Planet</th>
-                  <th>Star / Sub</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kp.rulingPlanets.map((rp) => (
-                  <tr key={rp.role}>
-                    <td>{rp.role}</td>
-                    <td><strong>{rp.planet}</strong></td>
-                    <td className="mono">{rp.starLordOfPlanet} / {rp.subLordOfPlanet}</td>
-                    <td>
-                      {rp.flaggedByRetrograde ? (
-                        <span className="flag-tag warn">Retrograde</span>
-                      ) : (
-                        <span className="flag-tag good">Active</span>
-                      )}
-                    </td>
+          {chart.input.castingMode === 'ashtamangala' ? (
+            <div className="table-scroll">
+              <table className="pro-table compact">
+                <thead>
+                  <tr>
+                    <th>Position</th>
+                    <th>Mod-8 Remainder</th>
+                    <th>Ruling Graha</th>
+                    <th>Meaning</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="body-lead" style={{ margin: 0, fontSize: '0.86rem' }}>
-            {kpEval.explanation}
-          </p>
+                </thead>
+                <tbody>
+                  {kerala.ashtamangala.digits.map((d) => (
+                    <tr key={d.position}>
+                      <td><strong>{d.position}</strong></td>
+                      <td className="mono">{d.remainder}</td>
+                      <td><strong>{d.planet}</strong> ({d.nature})</td>
+                      <td>{d.meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="data-kv-grid">
+              <div>
+                <span>Lagna &amp; Work-House Yoga</span>
+                <strong>{tajika.lagnaLord} (1L) ↔ {tajika.karyesha} ({tajika.karyeshaHouse}L): {tajika.verdictLabel}</strong>
+              </div>
+              <div>
+                <span>Hora &amp; Day Balance</span>
+                <strong>{chart.panchanga.horaLord} Hora (#{chart.panchanga.horaNumber}) · Hora Lagna: {chart.horaLagnaSignName}</strong>
+              </div>
+              <div>
+                <span>Navamsa Verification (D-9)</span>
+                <strong>{chart.prashna108Info ? `${chart.prashna108Info.navamsaSignName} Navamsa` : `${classical.lagnaTraits.udayaType} (${classical.lagnaTraits.genderSign})`}</strong>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Collapsible Secondary Astronomical Drawer */}
       <details className="panel">

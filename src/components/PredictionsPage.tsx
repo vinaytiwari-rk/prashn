@@ -290,64 +290,66 @@ export const PredictionsPage: React.FC<PredictionsPageProps> = ({
         </div>
       )}
 
-      {/* KP Horary Prediction & Sub-Lord Judgment */}
-      <div className="panel">
-        <div className="panel-header-row" style={{ marginBottom: 10 }}>
-          <div>
-            <span className="panel-eyebrow">KP Horary Prediction (Cusp {report.kpPrediction.primaryCusp} Sub-Lord)</span>
-            <h3 style={{ margin: 0 }}>
-              KP Judgment: {report.kpPrediction.verdictLabel} ({report.kpPrediction.scorePct}%)
-            </h3>
+      {/* KP Horary Prediction & Sub-Lord Judgment (Shown ONLY when KP Horary method is selected) */}
+      {chart.input.castingMode === 'kp_horary' && (
+        <div className="panel">
+          <div className="panel-header-row" style={{ marginBottom: 10 }}>
+            <div>
+              <span className="panel-eyebrow">KP Horary Prediction (Cusp {report.kpPrediction.primaryCusp} Sub-Lord)</span>
+              <h3 style={{ margin: 0 }}>
+                KP Judgment: {report.kpPrediction.verdictLabel} ({report.kpPrediction.scorePct}%)
+              </h3>
+            </div>
+            <span
+              className={`flag-tag ${
+                report.kpPrediction.scorePct >= 70
+                  ? 'good'
+                  : report.kpPrediction.scorePct >= 45
+                  ? 'warn'
+                  : 'bad'
+              }`}
+            >
+              Cusp {report.kpPrediction.primaryCusp} CSL: {report.kpPrediction.cuspSubLord}
+            </span>
           </div>
-          <span
-            className={`flag-tag ${
-              report.kpPrediction.scorePct >= 70
-                ? 'good'
-                : report.kpPrediction.scorePct >= 45
-                ? 'warn'
-                : 'bad'
-            }`}
-          >
-            Cusp {report.kpPrediction.primaryCusp} CSL: {report.kpPrediction.cuspSubLord}
-          </span>
+
+          <p className="body-lead" style={{ marginBottom: 12 }}>
+            {report.kpPrediction.summaryText}
+          </p>
+
+          <div className="data-kv-grid">
+            <div>
+              <span>Cusp {report.kpPrediction.primaryCusp} Sub-Lord &amp; Star Lord</span>
+              <strong>
+                {report.kpPrediction.cuspSubLord} in {report.kpPrediction.starLord} Star · {report.kpPrediction.subSubLord} Sub-Sub
+              </strong>
+            </div>
+            <div>
+              <span>Supporting vs Adverse KP Houses</span>
+              <strong>
+                Supports: {report.kpPrediction.matchedFavourable.join(', ') || 'None directly'} · Friction:{' '}
+                {report.kpPrediction.matchedUnfavourable.join(', ') || 'None'}
+              </strong>
+            </div>
+            <div>
+              <span>KP Motion &amp; Delivery Rule</span>
+              <strong>{report.kpPrediction.retroRulePlain}</strong>
+            </div>
+            <div>
+              <span>Active Ruling Planets</span>
+              <strong>{report.kpPrediction.cleanRulingPlanets.join(', ') || 'Direct transit awaited'}</strong>
+            </div>
+          </div>
+
+          {report.kpPrediction.specialNotes.length > 0 && (
+            <ul className="plain-bullet-list" style={{ marginTop: 10 }}>
+              {report.kpPrediction.specialNotes.map((note, idx) => (
+                <li key={idx}>{note}</li>
+              ))}
+            </ul>
+          )}
         </div>
-
-        <p className="body-lead" style={{ marginBottom: 12 }}>
-          {report.kpPrediction.summaryText}
-        </p>
-
-        <div className="data-kv-grid">
-          <div>
-            <span>Cusp {report.kpPrediction.primaryCusp} Sub-Lord &amp; Star Lord</span>
-            <strong>
-              {report.kpPrediction.cuspSubLord} in {report.kpPrediction.starLord} Star · {report.kpPrediction.subSubLord} Sub-Sub
-            </strong>
-          </div>
-          <div>
-            <span>Supporting vs Adverse KP Houses</span>
-            <strong>
-              Supports: {report.kpPrediction.matchedFavourable.join(', ') || 'None directly'} · Friction:{' '}
-              {report.kpPrediction.matchedUnfavourable.join(', ') || 'None'}
-            </strong>
-          </div>
-          <div>
-            <span>KP Motion &amp; Delivery Rule</span>
-            <strong>{report.kpPrediction.retroRulePlain}</strong>
-          </div>
-          <div>
-            <span>Active Ruling Planets</span>
-            <strong>{report.kpPrediction.cleanRulingPlanets.join(', ') || 'Direct transit awaited'}</strong>
-          </div>
-        </div>
-
-        {report.kpPrediction.specialNotes.length > 0 && (
-          <ul className="plain-bullet-list" style={{ marginTop: 10 }}>
-            {report.kpPrediction.specialNotes.map((note, idx) => (
-              <li key={idx}>{note}</li>
-            ))}
-          </ul>
-        )}
-      </div>
+      )}
 
       {/* Specific Choice / Exam Paper / Career / Gender Comparison (If Applicable) */}
       {report.choiceSection && (
@@ -472,9 +474,9 @@ export const PredictionsPage: React.FC<PredictionsPageProps> = ({
         </div>
       </div>
 
-      {/* Specific Answer Findings */}
+      {/* Selected-Method Answer Findings */}
       <div className="panel">
-        <h3>Detailed Question Insights &amp; Specific Signs</h3>
+        <h3>Detailed Question Insights ({report.methodSummary.methodLabel})</h3>
         <div className="data-kv-list">
           {report.findings.map((f) => (
             <div key={f.label} className="kv-line">

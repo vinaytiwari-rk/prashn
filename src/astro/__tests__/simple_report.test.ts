@@ -266,6 +266,14 @@ describe('Plain-English SimpleHoraryReport Formatting', () => {
     expect(kpOnlyRep.methodSummary.layers[0].layerName).toContain('KP Horary');
     expect(kpOnlyRep.methodSummary.layers.length).toBe(4);
     expect(buildSimpleHoraryReport(horaRes).methodSummary.methodLabel).toContain('Hora Lagna');
+
+    // Findings strictly stay within the selected method (non-KP modes do not show KP sub-lord findings)
+    const horaRep = buildSimpleHoraryReport(horaRes);
+    const horaLabels = horaRep.findings.map((f) => f.label).join(' ');
+    expect(horaLabels).toContain('Active Hora Lord');
+    expect(horaLabels).not.toMatch(/KP Horary|KP Ruling|Primary Query Cusp/i);
+    expect(kpOnlyRep.findings.map((f) => f.label).join(' ')).toContain('Active KP Ruling Planets');
+
     const joinedMethod = JSON.stringify(rep.methodSummary) + JSON.stringify(kpOnlyRep.methodSummary);
     expect(joinedMethod).not.toMatch(/pdf|page\s+\d|krishnamurti|raman|tajika\s+nilakanthi|prashna\s+marga|http|openai|gemini|determinis|nichod|sabhi/i);
   });

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SIGNS } from '../astro/constants';
 import type { CompleteHoraryAnalysis } from '../astro/horaryAnalyzer';
 import { getTopicMeta } from '../astro/questionCatalog';
@@ -163,8 +163,18 @@ const DiamondChartCard: React.FC<DiamondSvgProps> = ({
 };
 
 export const VedicCharts: React.FC<VedicChartsProps> = ({ analysis }) => {
-  const [secondaryMode, setSecondaryMode] = useState<SecondaryChartMode>('kp_bhava');
   const { chart, kp } = analysis;
+  const preferredSecondary: SecondaryChartMode =
+    chart.input.castingMode === 'kp_horary'
+      ? 'kp_bhava'
+      : chart.input.castingMode === 'hora_lagna'
+      ? 'hora_lagna'
+      : 'd9';
+  const [secondaryMode, setSecondaryMode] = useState<SecondaryChartMode>(preferredSecondary);
+
+  useEffect(() => {
+    setSecondaryMode(preferredSecondary);
+  }, [preferredSecondary]);
   const topicMeta = getTopicMeta(chart.input.category);
   const primaryFocusHouse = topicMeta.focusHouses[0] ?? 1;
 

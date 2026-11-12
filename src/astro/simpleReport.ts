@@ -420,36 +420,52 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
     paragraph: s.answer,
   }));
 
-  // Supporting & Caution Bullet Lists (Plain Everyday Words)
+  const mode = chart.input.castingMode;
+  const isKpMode = mode === 'kp_horary';
+  const usesTajika = ['time_lagna', 'number_108', 'arudha_override', 'ashtamangala', 'hora_lagna'].includes(mode);
+  const usesKerala = mode === 'ashtamangala' || mode === 'time_lagna';
+
+  // Supporting & Caution Bullet Lists (Focused ONLY on selected calculation method + Hora/Swara)
   const supportingPoints: string[] = [];
-  if (kp.domainEvaluation.matchedFavourable.length > 0) {
-    supportingPoints.push(
-      `Helpful life areas active right now: ${describeHousesPlain(kp.domainEvaluation.matchedFavourable)}.`
-    );
-  }
-  if (primaryPosYoga) {
-    supportingPoints.push(
-      mediatorYoga
-        ? 'An external contact, mentor, or well-wisher helps move this matter forward.'
-        : 'Timing and initiative naturally line up toward completion.'
-    );
-  }
-  if (kp.cleanRulingPlanets.length > 0) {
-    supportingPoints.push(
-      `Best active days of the week to push forward: ${bestDaysNote}.`
-    );
-  }
-  if (kerala.bhavaRuin.totalRuinPoints <= 4) {
-    supportingPoints.push('Overall foundation for this question is steady with low hidden friction.');
-  }
-  if (classical.degreeOfSuccess.pct >= 75) {
-    supportingPoints.push(`Strong House 1 blessing (${classical.degreeOfSuccess.pct}%): ${classical.degreeOfSuccess.basis}`);
-  }
-  if (classical.lagnaTraits.udayaType === 'Shirshodaya') {
-    supportingPoints.push(`${chart.ascendantSignName} rises visibly (head-first), supporting straightforward execution.`);
-  }
-  if (chart.input.category === 'general_yes_no' && classical.dailyQueryNote) {
-    supportingPoints.push(classical.dailyQueryNote);
+  if (isKpMode) {
+    if (kp.domainEvaluation.matchedFavourable.length > 0) {
+      supportingPoints.push(
+        `Supporting KP houses active: ${describeHousesPlain(kp.domainEvaluation.matchedFavourable)} via Sub-Lord ${cslPlanet}.`
+      );
+    }
+    if (kp.cleanRulingPlanets.length > 0) {
+      supportingPoints.push(
+        `Best KP Ruling Planet weekdays to act: ${bestDaysNote}.`
+      );
+    }
+  } else {
+    if (usesTajika && primaryPosYoga) {
+      supportingPoints.push(
+        mediatorYoga
+          ? 'An external contact, mentor, or well-wisher helps move this matter forward.'
+          : 'Lagna Lord and Work-House Lord timing align toward completion.'
+      );
+    }
+    if (usesKerala && kerala.bhavaRuin.totalRuinPoints <= 4) {
+      supportingPoints.push('House foundation is steady with low hidden friction.');
+    }
+    if (classical.degreeOfSuccess.pct >= 75) {
+      supportingPoints.push(`Strong House 1 blessing (${classical.degreeOfSuccess.pct}%): ${classical.degreeOfSuccess.basis}`);
+    }
+    if (classical.lagnaTraits.udayaType === 'Shirshodaya') {
+      supportingPoints.push(`${chart.ascendantSignName} rises visibly (head-first), supporting straightforward execution.`);
+    }
+    if (mode === 'number_108' && chart.prashna108Info) {
+      supportingPoints.push(
+        `Number ${chart.prashna108Info.number} maps to ${chart.prashna108Info.lagnaSignName} Lagna and ${chart.prashna108Info.navamsaSignName} Navamsa.`
+      );
+    }
+    if (mode === 'ashtamangala' && kerala.ashtamangala.oddCount >= 2) {
+      supportingPoints.push(`Ashtamangala triad (${kerala.ashtamangala.piles.join('-')}) shows majority odd-digit forward momentum.`);
+    }
+    if (chart.input.category === 'general_yes_no' && classical.dailyQueryNote) {
+      supportingPoints.push(classical.dailyQueryNote);
+    }
   }
   if (domain.horaAnalysis.tone === 'good') {
     supportingPoints.push(domain.horaAnalysis.plainMeaning);
@@ -462,13 +478,33 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
   }
 
   const cautionPoints: string[] = [];
-  if (kp.domainEvaluation.matchedUnfavourable.length > 0) {
-    cautionPoints.push(
-      `Areas needing care: ${describeHousesPlain(kp.domainEvaluation.matchedUnfavourable)}.`
-    );
-  }
-  if (kp.domainEvaluation.retroMatrixCase !== 'Direct in Direct Star') {
-    cautionPoints.push(retroDelayHint);
+  if (isKpMode) {
+    if (kp.domainEvaluation.matchedUnfavourable.length > 0) {
+      cautionPoints.push(
+        `Adverse KP houses linked to Cusp ${kp.domainEvaluation.primaryCusp}: ${describeHousesPlain(kp.domainEvaluation.matchedUnfavourable)}.`
+      );
+    }
+    if (kp.domainEvaluation.retroMatrixCase !== 'Direct in Direct Star') {
+      cautionPoints.push(retroDelayHint);
+    }
+  } else {
+    if (usesTajika && primaryNegYoga) {
+      cautionPoints.push('Lagna Lord and Work-House Lord show separation or friction — avoid rushing.');
+    }
+    if (usesKerala && kerala.bhavaRuin.totalRuinPoints > 5) {
+      cautionPoints.push('Elevated house stress detected — take deliberate, careful steps before committing.');
+    }
+    for (const mksAlert of classical.maranaKarakaAlerts.slice(0, 2)) {
+      cautionPoints.push(mksAlert);
+    }
+    if (mode === 'time_lagna' && radicality.timeDoshas.some((d) => d.triggered)) {
+      const firstDosha = radicality.timeDoshas.find((d) => d.triggered);
+      if (firstDosha) {
+        cautionPoints.push(
+          `Caution around current timing (${stripReferenceTags(firstDosha.name)}) — verify facts calmly before acting.`
+        );
+      }
+    }
   }
   if (domain.horaAnalysis.tone === 'bad') {
     cautionPoints.push(domain.horaAnalysis.plainMeaning);
@@ -476,25 +512,8 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
   if (domain.swaraAnalysis.checked && domain.swaraAnalysis.tone === 'bad') {
     cautionPoints.push(domain.swaraAnalysis.plainMeaning);
   }
-  const weakNotes = systemsApproach.planetProfiles
-    .filter((pr) => systemsApproach.primeDeterminant.primePlanets.includes(pr.planet) && pr.isWeak)
-    .map((pr) => `${pr.planet} needs support`);
-  if (weakNotes.length > 0) {
-    cautionPoints.push(`Mild planetary stress present (${weakNotes.join(', ')}) — see the practical remedies below.`);
-  }
-  for (const mksAlert of classical.maranaKarakaAlerts.slice(0, 2)) {
-    cautionPoints.push(mksAlert);
-  }
-  if (radicality.timeDoshas.some((d) => d.triggered)) {
-    const firstDosha = radicality.timeDoshas.find((d) => d.triggered);
-    if (firstDosha) {
-      cautionPoints.push(
-        `Caution around current timing (${stripReferenceTags(firstDosha.name)}) — verify facts calmly before acting.`
-      );
-    }
-  }
   if (cautionPoints.length === 0) {
-    cautionPoints.push('No heavy hidden blockages detected right now.');
+    cautionPoints.push('No heavy hidden blockages detected for this chosen method right now.');
   }
 
   // Plain Journey Flow (Past -> Present -> Expected Result)
@@ -532,18 +551,208 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
     },
   ];
 
-  // 6. Rich Domain-Specific Findings
+  // 6. Method-Focused Insights & Signs (Strictly focused on chosen Calculation Method)
   const findings: PlainFinding[] = [];
   const cat = chart.input.category;
   const byId = new Map(chart.planets.map((p) => [p.id, p]));
   const venus = byId.get('Venus')!;
   const jupiter = byId.get('Jupiter')!;
+  const moonP = byId.get('Moon')!;
 
-  findings.push({
-    label: 'Rising Sign Nature & Direct Strength',
-    value: `${chart.ascendantSignName} (${classical.lagnaTraits.udayaType}, ${classical.lagnaTraits.genderSign}, ${classical.lagnaTraits.bodyType}, ${classical.lagnaTraits.sunOrientation}) · ${classical.degreeOfSuccess.pct}% (${classical.degreeOfSuccess.basis})`,
-    tone: classical.degreeOfSuccess.pct >= 75 ? 'good' : classical.degreeOfSuccess.pct === 0 ? 'bad' : 'info',
-  });
+  if (mode === 'kp_horary') {
+    findings.push(
+      {
+        label: 'KP Horary Number & Rising Sub-Lord',
+        value: chart.activeKpSlot
+          ? `KP #${chart.activeKpSlot.number} -> ${chart.activeKpSlot.signName} · Sub-Lord ${chart.activeKpSlot.subLord}`
+          : `${chart.ascendantSignName} rising`,
+        tone: 'info',
+      },
+      {
+        label: `Primary Query Cusp ${kp.domainEvaluation.primaryCusp} Sub-Lord`,
+        value: `${cslPlanet} in ${starPlanet} Star · ${kp.domainEvaluation.verdict} (${kp.domainEvaluation.scorePct}%)`,
+        tone: kp.domainEvaluation.scorePct >= 65 ? 'good' : kp.domainEvaluation.scorePct >= 46 ? 'warn' : 'bad',
+      },
+      {
+        label: 'Supporting KP Houses',
+        value:
+          kp.domainEvaluation.matchedFavourable.length > 0
+            ? `${describeHousesPlain(kp.domainEvaluation.matchedFavourable)} — activated cleanly by ${cslPlanet} and ${starPlanet}.`
+            : 'Limited direct supporting KP houses right now.',
+        tone: kp.domainEvaluation.matchedFavourable.length > 0 ? 'good' : 'warn',
+      },
+      {
+        label: 'Adverse KP Houses & Motion Rule',
+        value:
+          kp.domainEvaluation.matchedUnfavourable.length > 0
+            ? `Friction houses: ${describeHousesPlain(kp.domainEvaluation.matchedUnfavourable)}. ${retroDelayHint}`
+            : `Clean KP houses. ${stripReferenceTags(kp.domainEvaluation.retroMatrixCase)}.`,
+        tone: kp.domainEvaluation.matchedUnfavourable.length > 0 ? 'warn' : 'good',
+      },
+      {
+        label: 'Active KP Ruling Planets',
+        value: kp.cleanRulingPlanets.join(', ') || 'Direct transit trigger awaited',
+        tone: 'info',
+      }
+    );
+    if (kp.domainEvaluation.readerVSpecialNotes.length > 0) {
+      const cleaned = kp.domainEvaluation.readerVSpecialNotes.map(stripReferenceTags).filter((s) => s.length > 4);
+      if (cleaned.length > 0) {
+        findings.push({
+          label: 'KP Special Planetary Timing Signals',
+          value: cleaned.join(' '),
+          tone: 'info',
+        });
+      }
+    }
+  } else if (mode === 'number_108' && chart.prashna108Info) {
+    const navLord = SIGNS[chart.prashna108Info.navamsaSignIndex].lord;
+    const navLordPos = byId.get(navLord);
+    findings.push(
+      {
+        label: '1–108 Division Calculation',
+        value: `Number ${chart.prashna108Info.number} ÷ 9 -> Quotient ${chart.prashna108Info.signsElapsed} -> ${chart.prashna108Info.lagnaSignName} Lagna · Remainder ${chart.prashna108Info.navamsaNumber} -> ${chart.prashna108Info.navamsaSignName} Navamsa`,
+        tone: 'info',
+      },
+      {
+        label: 'Navamsa Lagna Lord Strength',
+        value: `${navLord} in ${navLordPos?.signName ?? '-'} (House ${navLordPos?.houseWholeSign ?? 1}, ${navLordPos?.dignity ?? 'Neutral'})`,
+        tone: navLordPos && [1, 2, 4, 5, 7, 9, 10, 11].includes(navLordPos.houseWholeSign) ? 'good' : 'warn',
+      },
+      {
+        label: 'Rising Sign Traits & Work Connection',
+        value: `${chart.ascendantSignName} (${classical.lagnaTraits.udayaType}, ${classical.lagnaTraits.genderSign}) · ${tajika.verdictLabel}`,
+        tone: classical.lagnaTraits.udayaType === 'Shirshodaya' ? 'good' : 'info',
+      }
+    );
+  } else if (mode === 'hora_lagna') {
+    const hlSign = SIGNS[chart.horaLagnaSignIndex ?? chart.ascendantSignIndex];
+    const hlLordPos = byId.get(hlSign.lord);
+    findings.push(
+      {
+        label: 'Active Hora Lord & Planetary Hour',
+        value: `${domain.horaAnalysis.horaLord} Hora (#${domain.horaAnalysis.horaNumber} of 24) — ${domain.horaAnalysis.badgeText} (${domain.horaAnalysis.horaScorePct}%)`,
+        tone: domain.horaAnalysis.tone,
+      },
+      {
+        label: 'Hora Lagna Sign & Lord Placement',
+        value: `${hlSign.name} rising · Lord ${hlSign.lord} in ${hlLordPos?.signName ?? '-'} (House ${hlLordPos?.houseWholeSign ?? 1}, ${hlLordPos?.dignity ?? 'Neutral'})`,
+        tone: hlLordPos && [1, 2, 4, 5, 7, 9, 10, 11].includes(hlLordPos.houseWholeSign) ? 'good' : 'warn',
+      },
+      {
+        label: 'Best Upcoming Hora Timing Window',
+        value: domain.horaAnalysis.nextBestHoraNote,
+        tone: 'info',
+      }
+    );
+  } else if (mode === 'ashtamangala') {
+    findings.push(
+      {
+        label: 'Ashtamangala 3-Number Triad',
+        value: `${kerala.ashtamangala.piles.join(' – ')} (${kerala.ashtamangala.oddCount}/3 odd) -> ${kerala.ashtamangala.summary}`,
+        tone: kerala.ashtamangala.oddCount >= 2 ? 'good' : 'warn',
+      },
+      {
+        label: '21-Point House Foundation & Udaya',
+        value: `${kerala.bhavaRuin.verdict} (${kerala.bhavaRuin.totalRuinPoints}/21 ruin pts) · ${chart.ascendantSignName} (${classical.lagnaTraits.udayaType})`,
+        tone: kerala.bhavaRuin.totalRuinPoints <= 4 ? 'good' : 'warn',
+      },
+      {
+        label: 'Lagna & Work-House Momentum',
+        value: `${tajika.lagnaLord} & ${tajika.karyesha} -> ${tajika.verdictLabel}`,
+        tone: primaryPosYoga ? 'good' : primaryNegYoga ? 'warn' : 'info',
+      }
+    );
+  } else if (mode === 'arudha_override') {
+    const arudhaSign = SIGNS[chart.ascendantSignIndex];
+    const arudhaLord = byId.get(arudhaSign.lord);
+    findings.push(
+      {
+        label: 'Selected Arudha Rasi & Nature',
+        value: `${arudhaSign.name} rising (${classical.lagnaTraits.udayaType}, ${classical.lagnaTraits.genderSign}, ${classical.lagnaTraits.bodyType})`,
+        tone: classical.lagnaTraits.udayaType === 'Shirshodaya' ? 'good' : 'info',
+      },
+      {
+        label: 'Arudha Lord Placement',
+        value: `${arudhaSign.lord} sits in ${arudhaLord?.signName ?? '-'} (House ${arudhaLord?.houseWholeSign ?? 1}, ${arudhaLord?.dignity ?? 'Neutral'})`,
+        tone: arudhaLord && [1, 2, 4, 5, 7, 9, 10, 11].includes(arudhaLord.houseWholeSign) ? 'good' : 'warn',
+      },
+      {
+        label: 'Work-House Connection from Arudha',
+        value: momentumSentence,
+        tone: primaryPosYoga ? 'good' : primaryNegYoga ? 'warn' : 'info',
+      }
+    );
+  } else if (mode === 'akshara_prashna') {
+    const groupMap: Record<string, string> = {
+      A: 'Sun',
+      Ka: 'Mars',
+      Cha: 'Venus',
+      Ta: 'Mercury',
+      Tha: 'Jupiter',
+      Pa: 'Saturn',
+      Ya_Sa: 'Moon',
+    };
+    const akPlanetId = (groupMap[chart.input.pranaksharaGroup ?? 'A'] ?? 'Sun') as NineGrahaId;
+    const akPos = byId.get(akPlanetId);
+    findings.push(
+      {
+        label: 'First Syllable Sound Group & Ruler',
+        value: `Group ${chart.input.pranaksharaGroup ?? 'A'} -> Ruler ${akPlanetId} in ${akPos?.signName ?? '-'} (House ${akPos?.houseWholeSign ?? 1}, ${akPos?.dignity ?? 'Neutral'})`,
+        tone: akPos && [1, 2, 4, 5, 7, 9, 10, 11].includes(akPos.houseWholeSign) ? 'good' : 'warn',
+      },
+      {
+        label: 'Cast Rising Sign & Nature',
+        value: `${chart.ascendantSignName} (${classical.lagnaTraits.udayaType}, ${classical.lagnaTraits.genderSign})`,
+        tone: classical.lagnaTraits.udayaType === 'Shirshodaya' ? 'good' : 'info',
+      }
+    );
+  } else if (mode === 'mooka_prashna') {
+    const mk = domain.mookBlind;
+    findings.push(
+      {
+        label: 'Unspoken Category (Dhatu / Moola / Jeeva)',
+        value: mk.natureOfQueryDhatuMoolaJeeva,
+        tone: 'good',
+      },
+      {
+        label: 'Inferred Matter on Mind',
+        value: stripReferenceTags(mk.inferredTopicHint),
+        tone: 'info',
+      },
+      {
+        label: 'Moon Mind State & Hora Clue',
+        value: `Moon in ${moonP.signName} (House ${moonP.houseWholeSign}, ${moonP.dignity}) · ${stripReferenceTags(mk.horaClue)}`,
+        tone: moonP.dignity === 'Debilitated' ? 'warn' : 'good',
+      }
+    );
+  } else {
+    findings.push(
+      {
+        label: 'Question Time Lagna & Direct Strength',
+        value: `${chart.ascendantSignName} (${classical.lagnaTraits.udayaType}, ${classical.lagnaTraits.genderSign}, ${classical.lagnaTraits.bodyType}, ${classical.lagnaTraits.sunOrientation}) · ${classical.degreeOfSuccess.pct}%`,
+        tone: classical.degreeOfSuccess.pct >= 75 ? 'good' : classical.degreeOfSuccess.pct === 0 ? 'bad' : 'info',
+      },
+      {
+        label: 'Lagna Lord & Work-House Yoga (Tajika)',
+        value: `${tajika.lagnaLord} (1L) & ${tajika.karyesha} (${tajika.karyeshaHouse}L) -> ${tajika.verdictLabel}. ${momentumSentence}`,
+        tone: primaryPosYoga ? 'good' : primaryNegYoga ? 'warn' : 'info',
+      },
+      {
+        label: 'Question Clarity & House Foundation',
+        value: `${radicality.isRadical ? 'Clear question timing' : 'Timing advisory present'} · ${kerala.bhavaRuin.verdict}`,
+        tone: radicality.isRadical && kerala.bhavaRuin.totalRuinPoints <= 4 ? 'good' : 'warn',
+      }
+    );
+  }
+
+  if (domain.swaraAnalysis.checked) {
+    findings.push({
+      label: 'Nostril Flow (Swara Yoga)',
+      value: `${domain.swaraAnalysis.nostrilLabel} (${domain.swaraAnalysis.positionLabel}) — ${domain.swaraAnalysis.badgeText}`,
+      tone: domain.swaraAnalysis.tone === 'info' ? 'info' : domain.swaraAnalysis.tone,
+    });
+  }
 
   if (cat === 'lost_stolen') {
     const c = domain.coraTheft;
@@ -551,16 +760,18 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
       {
         label: 'Recovery Outlook',
         value: stripReferenceTags(c.recoveryVerdict),
-        tone: kp.domainEvaluation.verdict.includes('Denial') ? 'bad' : 'good',
+        tone: domain.unifiedVerdict === 'Unfavourable / Denial' ? 'bad' : 'good',
       },
       {
         label: 'Where to Search (Direction)',
-        value: `${stripReferenceTags(c.directionKpCardinal)} — also check ${stripReferenceTags(c.directionClassicalCorner)}`,
+        value: isKpMode
+          ? `${stripReferenceTags(c.directionKpCardinal)} (${stripReferenceTags(c.directionClassicalCorner)})`
+          : stripReferenceTags(c.directionClassicalCorner),
         tone: 'info',
       },
       {
         label: 'Distance & Premises Zone',
-        value: `${stripReferenceTags(c.mobilityDistance)} · ${classical.theftCues.insideOrOutsider} · Priority search spot: ${classical.theftCues.drekkanaSpot}`,
+        value: `${stripReferenceTags(c.mobilityDistance)} · ${classical.theftCues.insideOrOutsider} · Priority spot: ${classical.theftCues.drekkanaSpot}`,
         tone: 'info',
       },
       {
@@ -574,40 +785,20 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
           ? `Higher chance a familiar person or indoor contact was involved: ${c.insideJobReasons.map(stripReferenceTags).join(' ')}`
           : 'Signals point more toward external misplacement or outside party than someone close inside.',
         tone: c.insideJobIndicator ? 'warn' : 'good',
-      },
-      {
-        label: 'Person / Suspect Cues',
-        value: `Count clue: ~${c.culpritCount} · Age range: ${stripReferenceTags(c.culpritAge)} · ${stripReferenceTags(c.culpritGender)}. ${stripReferenceTags(c.suspectCheck)}`,
-        tone: 'info',
-      },
-      {
-        label: 'How It Likely Happened',
-        value: `${c.modeOfTheftCues.map(stripReferenceTags).join(' ')} (${stripReferenceTags(c.culpritRelationCue)})`,
-        tone: 'info',
       }
     );
   } else if (cat === 'medical_health') {
     const m = domain.medicalBadha;
     findings.push(
       {
-        label: 'Condition & Diagnosis Clarity',
-        value: `${stripReferenceTags(m.diseaseNature)} (${stripReferenceTags(m.pranaksharaRecoveryMod3)})`,
-        tone: 'info',
+        label: 'Condition & Recovery Outlook',
+        value: `${stripReferenceTags(m.diseaseNature)} (${stripReferenceTags(m.relapseRisk)})`,
+        tone: m.relapseRisk.toLowerCase().includes('lower') ? 'good' : 'warn',
       },
       {
         label: 'Body Systems / Areas to Watch',
         value: m.affectedOrgans.map(stripReferenceTags).join(' • '),
         tone: 'warn',
-      },
-      {
-        label: 'Recovery & Relapse Watch',
-        value: stripReferenceTags(m.relapseRisk),
-        tone: m.relapseRisk.toLowerCase().includes('lower') ? 'good' : 'warn',
-      },
-      {
-        label: 'Doctor & Treatment Balance',
-        value: m.consultationRoles.map((r) => `${stripReferenceTags(r.role)}: ${stripReferenceTags(r.signAndLord)}`).join(' · '),
-        tone: 'info',
       }
     );
     for (const ic of classical.illnessCues) {
@@ -617,197 +808,81 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
         tone: ic.favourable === true ? 'good' : ic.favourable === false ? 'warn' : 'info',
       });
     }
-    if (m.deityBadhaAssociations.length > 0) {
-      findings.push({
-        label: 'Mental Peace & Ancestral / Spiritual Care',
-        value: `Gentle household prayer or charity advised for: ${m.deityBadhaAssociations.slice(0, 3).map((d) => stripReferenceTags(d.deity)).join(', ')}.`,
-        tone: 'warn',
-      });
-    }
-  } else if (cat === 'blind_mook') {
-    const mk = domain.mookBlind;
-    const simpleSubject = mk.natureOfQueryDhatuMoolaJeeva.includes('Dhatu')
-      ? 'Money, valuables, career assets, or material stability'
-      : mk.natureOfQueryDhatuMoolaJeeva.includes('Moola')
-      ? 'Home, land, property, roots, or family environment'
-      : 'Health, personal relationships, loved ones, or living concerns';
+  } else if (cat === 'marriage_relationship') {
     findings.push(
       {
-        label: 'Primary Topic on Your Mind',
-        value: stripReferenceTags(mk.inferredTopicHint),
-        tone: 'info',
+        label: 'Harmony & Mutual Affection (Venus)',
+        value: `Venus is in ${venus.signName} (House ${venus.houseWholeSign}, ${venus.dignity}${
+          venus.isRetrograde ? ', moving backward' : ', direct'
+        }${venus.isCombust ? ', combust' : ''}).`,
+        tone: venus.isCombust ? 'warn' : 'good',
       },
       {
-        label: 'Core Category of Concern',
-        value: simpleSubject,
-        tone: 'good',
-      },
-      {
-        label: 'Hourly Focus Clue',
-        value: stripReferenceTags(mk.horaClue),
-        tone: 'info',
-      },
-      {
-        label: 'Underlying Mind Indicator',
-        value: `Moon’s star lord and house position reinforce focus around House ${mk.inferredHouseFocus}.`,
-        tone: 'info',
+        label: 'Commitment Indicator (Jupiter)',
+        value: `Jupiter is in ${jupiter.signName} (House ${jupiter.houseWholeSign}, ${jupiter.dignity}).`,
+        tone: jupiter.dignity === 'Debilitated' ? 'warn' : 'info',
       }
     );
-  } else {
-    findings.push(
-      {
-        label: 'What Strongly Supports You',
-        value:
-          kp.domainEvaluation.matchedFavourable.length > 0
-            ? `${describeHousesPlain(kp.domainEvaluation.matchedFavourable)} — activated cleanly by ${cslPlanet} and ${starPlanet}.`
-            : 'Limited direct house alignment right now — extra planning and patience are required.',
-        tone: kp.domainEvaluation.matchedFavourable.length > 0 ? 'good' : 'warn',
-      },
-      {
-        label: 'Main Obstacles / Friction',
-        value:
-          kp.domainEvaluation.matchedUnfavourable.length > 0
-            ? `Watch for friction around ${describeHousesPlain(kp.domainEvaluation.matchedUnfavourable)}. ${retroDelayHint}`
-            : 'No heavy hidden house blockers detected.',
-        tone: kp.domainEvaluation.matchedUnfavourable.length > 0 ? 'warn' : 'good',
-      },
-      {
-        label: 'Goal Connection & Third-Party Help',
-        value: momentumSentence,
-        tone: primaryPosYoga ? 'good' : primaryNegYoga ? 'warn' : 'info',
-      }
-    );
-
-    if (cat === 'marriage_relationship') {
-      findings.push(
-        {
-          label: 'Harmony & Mutual Affection',
-          value: `Relationship planet Venus is in ${venus.signName} (House ${venus.houseWholeSign}, ${venus.dignity}${
-            venus.isRetrograde ? ', moving backward — favours reconnection or rethinking past ties' : ', direct'
-          }${venus.isCombust ? ', close to Sun — manage ego or family pressure' : ''}).`,
-          tone: venus.isCombust ? 'warn' : 'good',
-        },
-        {
-          label: 'Commitment & Maturity Indicator',
-          value: `Jupiter occupies ${jupiter.signName} (House ${jupiter.houseWholeSign}, ${jupiter.dignity}), shaping long-term stability and family approval.`,
-          tone: jupiter.dignity === 'Debilitated' ? 'warn' : 'info',
-        }
-      );
-      for (const mc of classical.marriageCues) {
-        findings.push({
-          label: mc.label,
-          value: mc.detail,
-          tone: mc.favourable === true ? 'good' : mc.favourable === false ? 'warn' : 'info',
-        });
-      }
-    }
-
-    if (cat === 'legal_litigation') {
+    for (const mc of classical.marriageCues) {
       findings.push({
-        label: `Dispute Advantage (${classical.disputeEdge.winner})`,
-        value: classical.disputeEdge.summary,
-        tone:
-          classical.disputeEdge.winner === 'Querent'
-            ? 'good'
-            : classical.disputeEdge.winner === 'Opponent'
-            ? 'warn'
-            : 'info',
+        label: mc.label,
+        value: mc.detail,
+        tone: mc.favourable === true ? 'good' : mc.favourable === false ? 'warn' : 'info',
       });
     }
-
-    if (cat === 'career_job' || cat === 'promotion_transfer') {
-      const sunP = byId.get('Sun')!;
-      findings.push(
-        {
-          label: 'Authority & Management Support',
-          value: `Sun sits in ${sunP.signName} (House ${sunP.houseWholeSign}, ${sunP.dignity}), indicating ${
-            sunP.dignity === 'Debilitated' || [6, 8, 12].includes(sunP.houseWholeSign)
-              ? 'seniors may need clearer proof of results before approving'
-              : 'reasonable goodwill from leaders or decision-makers'
-          }.`,
-          tone: sunP.dignity === 'Debilitated' ? 'warn' : 'info',
-        }
-      );
-      for (const cc of classical.careerCues) {
-        findings.push({
-          label: cc.label,
-          value: cc.detail,
-          tone: cc.favourable === true ? 'good' : 'warn',
-        });
-      }
-    }
-
-    if (cat === 'travel_missing') {
-      findings.push(
-        {
-          label: 'Travel / Missing Person Separation Check',
-          value: stripReferenceTags(systemsApproach.missingPersonSeparationNote),
-          tone: systemsApproach.missingPersonSeparationNote.toLowerCase().includes('voluntary') ? 'info' : 'warn',
-        },
-        {
-          label: 'Return Window Estimate',
-          value: classical.travelerCues.returnSummary,
-          tone: 'info',
-        }
-      );
-      for (const tc of classical.travelerCues.signals) {
-        findings.push({
-          label: tc.label,
-          value: tc.detail,
-          tone: tc.favourable === true ? 'good' : tc.favourable === false ? 'warn' : 'info',
-        });
-      }
-    }
-
-    if (cat === 'pregnancy_children' && timing.pregnancyTimingNote) {
-      findings.push({
-        label: 'Vitality & Milestone Window',
-        value: `Estimated progression points toward roughly ${Math.max(
-          1,
-          Math.round(timing.pregnancyTimingNote.daysEstimateByNavamsa / 30)
-        )} month(s) (${timing.pregnancyTimingNote.daysEstimateByNavamsa} days) toward a key milestone.`,
-        tone: 'info',
-      });
-    }
-
-    if (cat === 'education_exam') {
-      const mercP = byId.get('Mercury')!;
-      findings.push({
-        label: 'Focus, Memory & Writing Readiness',
-        value: `Mental clarity stands at ${mercP.dignity} (${mercP.isCombust ? 'under mild pressure — avoid rushing answers' : mercP.isRetrograde ? 'double-check wording and steps carefully' : 'steady recall and analytical balance'}).`,
-        tone: mercP.isCombust || mercP.dignity === 'Debilitated' ? 'warn' : 'good',
-      });
-    }
-
-    for (const row of domain.domainHighlights.rows.slice(0, 3)) {
-      const cleanedVal = stripReferenceTags(row.value);
-      const cleanedLbl = stripReferenceTags(row.label);
-      if (cleanedVal.length > 6 && !findings.some((f) => f.label === cleanedLbl)) {
-        findings.push({
-          label: cleanedLbl,
-          value: cleanedVal,
-          tone: 'info',
-        });
-      }
-    }
-  }
-
-  if (kp.domainEvaluation.readerVSpecialNotes.length > 0) {
-    const cleaned = kp.domainEvaluation.readerVSpecialNotes.map(stripReferenceTags).filter((s) => s.length > 4);
-    if (cleaned.length > 0) {
-      findings.push({
-        label: 'Special Planetary Timing Signals',
-        value: cleaned.join(' '),
-        tone: 'info',
-      });
-    }
-  }
-
-  if (systemsApproach.bhriguNadi.nadiEntryNumber !== null) {
+  } else if (cat === 'legal_litigation') {
     findings.push({
-      label: 'Personal Age Cycle Number',
-      value: `Age Index #${systemsApproach.bhriguNadi.nadiEntryNumber} (calculated from age ${systemsApproach.bhriguNadi.querentAge}).`,
+      label: `Dispute Advantage (${classical.disputeEdge.winner})`,
+      value: classical.disputeEdge.summary,
+      tone:
+        classical.disputeEdge.winner === 'Querent'
+          ? 'good'
+          : classical.disputeEdge.winner === 'Opponent'
+          ? 'warn'
+          : 'info',
+    });
+  } else if (cat === 'career_job' || cat === 'promotion_transfer') {
+    const sunP = byId.get('Sun')!;
+    findings.push({
+      label: 'Authority & Management Support (Sun)',
+      value: `Sun sits in ${sunP.signName} (House ${sunP.houseWholeSign}, ${sunP.dignity}).`,
+      tone: sunP.dignity === 'Debilitated' ? 'warn' : 'info',
+    });
+    for (const cc of classical.careerCues) {
+      findings.push({
+        label: cc.label,
+        value: cc.detail,
+        tone: cc.favourable === true ? 'good' : 'warn',
+      });
+    }
+  } else if (cat === 'travel_missing') {
+    findings.push({
+      label: 'Return Window Estimate',
+      value: classical.travelerCues.returnSummary,
       tone: 'info',
+    });
+    for (const tc of classical.travelerCues.signals) {
+      findings.push({
+        label: tc.label,
+        value: tc.detail,
+        tone: tc.favourable === true ? 'good' : tc.favourable === false ? 'warn' : 'info',
+      });
+    }
+  } else if (cat === 'pregnancy_children' && timing.pregnancyTimingNote) {
+    findings.push({
+      label: 'Vitality & Milestone Window',
+      value: `Estimated progression points toward roughly ${Math.max(
+        1,
+        Math.round(timing.pregnancyTimingNote.daysEstimateByNavamsa / 30)
+      )} month(s) (${timing.pregnancyTimingNote.daysEstimateByNavamsa} days) toward a key milestone.`,
+      tone: 'info',
+    });
+  } else if (cat === 'education_exam') {
+    const mercP = byId.get('Mercury')!;
+    findings.push({
+      label: 'Focus, Memory & Writing Readiness (Mercury)',
+      value: `Mental clarity stands at ${mercP.dignity} (${mercP.isCombust ? 'under mild pressure — avoid rushing answers' : mercP.isRetrograde ? 'double-check wording and steps carefully' : 'steady recall and analytical balance'}).`,
+      tone: mercP.isCombust || mercP.dignity === 'Debilitated' ? 'warn' : 'good',
     });
   }
 
