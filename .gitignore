@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.venv/
+.vercel/
+sources/
+scripts/
+.DS_Store
+*.log

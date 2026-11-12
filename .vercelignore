@@ -1,0 +1,7 @@
+.venv
+scripts
+sources/pdfs
+sources/web_html
+sources/extracted_text
+sources/*.md
+node_modules
