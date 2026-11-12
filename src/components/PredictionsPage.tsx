@@ -18,6 +18,7 @@ interface PredictionsPageProps {
   onSelectQuestion?: (id: string) => void;
   onBackToBasicDetails?: () => void;
   onBackToCalculations?: () => void;
+  onGoToGuide?: () => void;
 }
 
 export const PredictionsPage: React.FC<PredictionsPageProps> = ({
@@ -27,6 +28,7 @@ export const PredictionsPage: React.FC<PredictionsPageProps> = ({
   onSelectQuestion,
   onBackToBasicDetails,
   onBackToCalculations,
+  onGoToGuide,
 }) => {
   const report = buildSimpleHoraryReport(analysis);
   const { chart, domain } = analysis;
@@ -40,19 +42,27 @@ export const PredictionsPage: React.FC<PredictionsPageProps> = ({
       ? 'verdict-mixed'
       : 'verdict-no';
 
+  const nichodToneClass = (tone: 'good' | 'warn' | 'bad' | 'info') =>
+    tone === 'good' ? 'good' : tone === 'bad' ? 'bad' : tone === 'info' ? 'muted' : 'warn';
+
   return (
     <div className="tab-stack">
-      {(onBackToCalculations || onBackToBasicDetails) && (
+      {(onBackToCalculations || onBackToBasicDetails || onGoToGuide) && (
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {onBackToBasicDetails && (
               <button type="button" className="btn-action" onClick={onBackToBasicDetails}>
-                ← 1. Edit Basic Details
+                ← 1. Basic Details
               </button>
             )}
             {onBackToCalculations && (
               <button type="button" className="btn-action" onClick={onBackToCalculations}>
-                ← 2. Calculations &amp; Chart
+                ← 2. Charts
+              </button>
+            )}
+            {onGoToGuide && (
+              <button type="button" className="btn-action" onClick={onGoToGuide}>
+                ← 3. Guide
               </button>
             )}
           </div>
@@ -187,13 +197,85 @@ export const PredictionsPage: React.FC<PredictionsPageProps> = ({
               <span>Active Period</span>
               <strong>{report.timingSummary.runningPeriod}</strong>
             </div>
-            <div className="kv-row">
-              <span>Question Clarity Check</span>
-              <strong>{report.clarityStatus.headline}</strong>
+              <div className="kv-row">
+                <span>Question Clarity Check</span>
+                <strong>{report.clarityStatus.headline}</strong>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+        {/* Chosen Method Prediction Breakdown */}
+        <div className="panel highlight-specialist">
+          <div className="panel-header-row" style={{ marginBottom: 10 }}>
+            <div>
+              <span className="panel-eyebrow">Selected Method · {report.methodSummary.methodLabel}</span>
+              <h3 className="panel-title">Prediction Breakdown ({report.methodSummary.methodLabel})</h3>
+              <p className="panel-hint" style={{ marginBottom: 0 }}>
+                Calculated strictly using your chosen <strong>{report.methodSummary.methodLabel}</strong> method, with Hora and Nostril (Swara) timing factored in.
+              </p>
+            </div>
+            <span className={`flag-tag ${report.verdictTone === 'good' ? 'good' : report.verdictTone === 'bad' ? 'bad' : 'warn'}`}>
+              Method Outlook: {report.strengthPct}%
+            </span>
+          </div>
+
+          <div className="nichod-grid">
+            {report.methodSummary.layers.map((layer) => (
+              <div key={layer.layerName} className={`nichod-card tone-${layer.tone}`}>
+                <div className="nichod-card-head">
+                  <strong>{layer.layerName}</strong>
+                  <span className={`flag-tag ${nichodToneClass(layer.tone)}`}>
+                    {layer.badgeText}
+                    {layer.scorePct !== null ? ` (${layer.scorePct}%)` : ''}
+                  </span>
+                </div>
+                <div className="nichod-short">{layer.shortOutcome}</div>
+                <p className="nichod-meaning">{layer.plainMeaning}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hora Timing & Active Nostril (Swara) Advice */}
+        <div className="two-col-grid">
+          <div className="panel">
+            <div className="panel-header-row" style={{ marginBottom: 8 }}>
+              <div>
+                <span className="panel-eyebrow">Hora Lord &amp; Hora Lagna Timing</span>
+                <h3 className="panel-title">
+                  {report.methodSummary.horaCard.activeHoraLabel} · {report.methodSummary.horaCard.horaLagnaLabel}
+                </h3>
+              </div>
+              <span className={`flag-tag ${nichodToneClass(report.methodSummary.horaCard.tone)}`}>
+                {report.methodSummary.horaCard.badgeText} ({report.methodSummary.horaCard.scorePct}%)
+              </span>
+            </div>
+            <p className="body-lead" style={{ marginBottom: 8 }}>
+              {report.methodSummary.horaCard.plainMeaning}
+            </p>
+            <div className="callout-neutral">
+              <strong>Best Next Hora Window:</strong> {report.methodSummary.horaCard.nextBestHoraNote}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header-row" style={{ marginBottom: 8 }}>
+              <div>
+                <span className="panel-eyebrow">Swara Shastra (Active Nostril &amp; Side)</span>
+                <h3 className="panel-title">
+                  {report.methodSummary.swaraCard.nostrilLabel} · {report.methodSummary.swaraCard.positionLabel}
+                </h3>
+              </div>
+              <span className={`flag-tag ${nichodToneClass(report.methodSummary.swaraCard.tone)}`}>
+                {report.methodSummary.swaraCard.badgeText}
+              </span>
+            </div>
+            <p className="body-lead" style={{ marginBottom: 0 }}>
+              {report.methodSummary.swaraCard.plainMeaning}
+            </p>
+          </div>
+        </div>
 
       {/* Question Clarity Notice if Advisory */}
       {!report.clarityStatus.clear && (

@@ -1,4 +1,5 @@
-import { KP_249_TABLE, QUESTION_CATEGORIES, SIGNS } from './constants';
+import { KP_249_TABLE, PERMANENT_FRIENDSHIP, QUESTION_CATEGORIES, SIGNS } from './constants';
+import { CASTING_METHOD_OPTIONS } from './questionCatalog';
 import type { KeralaPrasnaReport } from './keralaPrasna';
 import type { KpHoraryReport } from './kpHorary';
 import type { RadicalityReport } from './radicality';
@@ -68,9 +69,19 @@ export interface OtherDomainHighlights {
   rows: { label: string; value: string; source: string }[];
 }
 
+export interface MethodLayerItem {
+  layerName: string;
+  scorePct: number | null;
+  tone: 'good' | 'warn' | 'bad' | 'info';
+  badgeText: 'Favourable' | 'Mixed' | 'Unfavourable' | 'Not Checked';
+  shortOutcome: string;
+  plainMeaning: string;
+}
+
 export interface DomainAnalysisReport {
   categoryLabel: string;
   primaryHouse: number;
+  activeMethodLabel: string;
   unifiedVerdict: 'Strong Yes' | 'Favourable with Effort / Delay' | 'Mixed / Conditional' | 'Unfavourable / Denial';
   unifiedScorePct: number; // 0..100
   threeSystemAlignment: {
@@ -79,6 +90,26 @@ export interface DomainAnalysisReport {
     kpVerdict: string;
     systemsApproachVerdict: string;
   };
+  horaAnalysis: {
+    horaLord: SevenPlanetId;
+    horaNumber: number;
+    horaLagnaSignName: string;
+    horaScorePct: number;
+    tone: 'good' | 'warn' | 'bad';
+    badgeText: 'Favourable' | 'Mixed' | 'Unfavourable';
+    plainMeaning: string;
+    nextBestHoraNote: string;
+  };
+  swaraAnalysis: {
+    checked: boolean;
+    nostrilLabel: string;
+    positionLabel: string;
+    scorePct: number | null;
+    tone: 'good' | 'warn' | 'bad' | 'info';
+    badgeText: 'Favourable' | 'Mixed' | 'Unfavourable' | 'Not Checked';
+    plainMeaning: string;
+  };
+  methodLayers: MethodLayerItem[];
   citations: RuleCitationCard[];
   coraTheft: CoraTheftSpecialist;
   medicalBadha: MedicalBadhaSpecialist;
@@ -510,7 +541,7 @@ export function synthesizeDomainReport(
     });
   }
 
-  // --- CITATION CARDS & UNIFIED DETERMINISTIC SCORE ---
+  // --- CHOSEN METHOD-BASED PREDICTION SCORING ---
   const kpScore = kp.domainEvaluation.scorePct;
   const tajikaScore = tajika.karyasiddhiTierPct;
   const keralaScore = Math.max(
@@ -523,19 +554,447 @@ export function synthesizeDomainReport(
         (kerala.ashtamangala.enabled ? (kerala.ashtamangala.oddCount - 1.5) * 6 : 0)
     )
   );
+
+  // Hora Lord & Hora Lagna Evaluation
+  const horaLord = chart.panchanga.horaLord;
+  const horaPos = byId.get(horaLord);
+  const horaSuitableByCat: Record<string, SevenPlanetId[]> = {
+    general_yes_no: ['Jupiter', 'Venus', 'Mercury', 'Moon', 'Sun'],
+    career_job: ['Saturn', 'Mercury', 'Jupiter', 'Sun'],
+    promotion_transfer: ['Sun', 'Jupiter', 'Mercury', 'Mars'],
+    marriage_relationship: ['Venus', 'Jupiter', 'Moon'],
+    finance_loan: ['Jupiter', 'Mercury', 'Venus', 'Moon'],
+    lost_stolen: ['Moon', 'Mercury', 'Jupiter', 'Venus'],
+    medical_health: ['Sun', 'Moon', 'Jupiter', 'Venus'],
+    property_vehicle: ['Mars', 'Venus', 'Moon', 'Jupiter'],
+    legal_litigation: ['Mars', 'Saturn', 'Sun', 'Jupiter'],
+    travel_missing: ['Moon', 'Mercury', 'Jupiter', 'Venus'],
+    pregnancy_children: ['Jupiter', 'Moon', 'Venus', 'Sun'],
+    education_exam: ['Mercury', 'Jupiter', 'Venus', 'Moon'],
+    blind_mook: ['Moon', 'Jupiter', 'Mercury', 'Venus'],
+  };
+  const topicPreferredHoras = horaSuitableByCat[chart.input.category] ?? ['Jupiter', 'Venus', 'Mercury'];
+  const horaTopicMatch = topicPreferredHoras.includes(horaLord);
+  const horaLagnaFriend = PERMANENT_FRIENDSHIP[horaLord].friends.includes(tajika.lagnaLord) || horaLord === tajika.lagnaLord;
+  const horaKaryeshaFriend = PERMANENT_FRIENDSHIP[horaLord].friends.includes(tajika.karyesha) || horaLord === tajika.karyesha;
+  const horaInGoodHouse = horaPos ? [1, 2, 4, 5, 7, 9, 10, 11].includes(horaPos.houseWholeSign) : false;
+  const horaDignityGood = horaPos ? ['Exalted', 'Moolatrikona', 'Own Sign', 'Great Friend', 'Friend'].includes(horaPos.dignity) : false;
+  const horaAfflicted = horaPos ? (horaPos.isCombust || ['Debilitated', 'Enemy', 'Great Enemy'].includes(horaPos.dignity) || [6, 8, 12].includes(horaPos.houseWholeSign)) : false;
+
+  let horaScorePct = 52;
+  if (horaTopicMatch) horaScorePct += 16;
+  else horaScorePct -= 8;
+  if (horaLagnaFriend) horaScorePct += 8;
+  if (horaKaryeshaFriend) horaScorePct += 10;
+  if (horaInGoodHouse) horaScorePct += 8;
+  if (horaDignityGood) horaScorePct += 8;
+  if (horaAfflicted) horaScorePct -= 16;
+  horaScorePct = Math.max(18, Math.min(95, horaScorePct));
+
+  const horaTone: 'good' | 'warn' | 'bad' = horaScorePct >= 66 ? 'good' : horaScorePct >= 46 ? 'warn' : 'bad';
+  const horaBadge: 'Favourable' | 'Mixed' | 'Unfavourable' =
+    horaTone === 'good' ? 'Favourable' : horaTone === 'warn' ? 'Mixed' : 'Unfavourable';
+  const horaMeaning =
+    horaTone === 'good'
+      ? `Active ${horaLord} Hora (#${chart.panchanga.horaNumber}) naturally supports ${catMeta.label} and aligns well with the chart.`
+      : horaTone === 'warn'
+      ? `Active ${horaLord} Hora (#${chart.panchanga.horaNumber}) brings mixed energy — steady patience works better than rushing.`
+      : `Active ${horaLord} Hora (#${chart.panchanga.horaNumber}) adds resistance or delay for ${catMeta.label}; acting in a friendlier Hora helps.`;
+
+  const upcomingBestHora = chart.panchanga.horaSchedule.find(
+    (slot) => slot.horaNumber > chart.panchanga.horaNumber && topicPreferredHoras.slice(0, 2).includes(slot.lord)
+  ) ?? chart.panchanga.horaSchedule.find((slot) => topicPreferredHoras.slice(0, 2).includes(slot.lord));
+  const nextBestHoraNote = upcomingBestHora
+    ? `Next supportive window: ${upcomingBestHora.lord} Hora (${upcomingBestHora.startLocal.slice(-8)}–${upcomingBestHora.endLocal.slice(-8)})`
+    : 'Choose Jupiter or Venus Hora on the same day for important action.';
+
+  // Nostril / Swara Yoga Evaluation
+  const nostril = chart.input.swaraNostril;
+  const swaraPos = chart.input.swaraPosition ?? 'unknown';
+  const calmTopics = new Set([
+    'general_yes_no',
+    'marriage_relationship',
+    'pregnancy_children',
+    'education_exam',
+    'medical_health',
+    'property_vehicle',
+  ]);
+  const swaraLabelMap: Record<string, string> = {
+    unknown: 'Not Checked',
+    left_ida: 'Left Nostril (Ida / Moon Swara)',
+    right_pingala: 'Right Nostril (Pingala / Sun Swara)',
+    both_sushumna: 'Both Nostrils Equally (Sushumna)',
+  };
+  const swaraPosLabelMap: Record<string, string> = {
+    unknown: 'Not Checked',
+    same_side: 'Same Side as Active Nostril',
+    opposite_side: 'Opposite Side to Active Nostril',
+    front: 'Seated Directly in Front',
+  };
+
+  let swaraScorePct: number | null = null;
+  let swaraTone: 'good' | 'warn' | 'bad' | 'info' = 'info';
+  let swaraBadge: 'Favourable' | 'Mixed' | 'Unfavourable' | 'Not Checked' = 'Not Checked';
+  let swaraMeaning = 'Nostril (Swara) was not checked; prediction uses chart, KP, Tajika, and Hora signals.';
+
+  if (nostril === 'left_ida') {
+    const fitsTopic = calmTopics.has(chart.input.category);
+    let score = fitsTopic ? 78 : 58;
+    if (chart.panchanga.paksha === 'Shukla') score += 8;
+    if (swaraPos === 'same_side') score += 10;
+    else if (swaraPos === 'opposite_side') score -= 12;
+    swaraScorePct = Math.max(25, Math.min(96, score));
+    swaraTone = swaraScorePct >= 66 ? 'good' : 'warn';
+    swaraBadge = swaraTone === 'good' ? 'Favourable' : 'Mixed';
+    swaraMeaning = fitsTopic
+      ? `Left Nostril (Ida / Moon) gives gentle, auspicious momentum for ${catMeta.label}${swaraPos === 'same_side' ? ' with full same-side support' : ''}.`
+      : `Left Nostril (Ida) prefers peaceful steps; for ${catMeta.label}, steady diplomacy works better than force.`;
+  } else if (nostril === 'right_pingala') {
+    const fitsActionTopic = !calmTopics.has(chart.input.category);
+    let score = fitsActionTopic ? 78 : 58;
+    if (chart.panchanga.paksha === 'Krishna') score += 8;
+    if (swaraPos === 'same_side') score += 10;
+    else if (swaraPos === 'opposite_side') score -= 12;
+    swaraScorePct = Math.max(25, Math.min(96, score));
+    swaraTone = swaraScorePct >= 66 ? 'good' : 'warn';
+    swaraBadge = swaraTone === 'good' ? 'Favourable' : 'Mixed';
+    swaraMeaning = fitsActionTopic
+      ? `Right Nostril (Pingala / Sun) gives active drive and winning momentum for ${catMeta.label}${swaraPos === 'same_side' ? ' with same-side support' : ''}.`
+      : `Right Nostril (Pingala) brings intense drive; avoid haste or harsh words in ${catMeta.label}.`;
+  } else if (nostril === 'both_sushumna') {
+    swaraScorePct = 32;
+    swaraTone = 'bad';
+    swaraBadge = 'Unfavourable';
+    swaraMeaning =
+      'Both nostrils flowing equally (Sushumna) signals an unsettled moment — wait until Left or Right nostril flows clearly before taking final decisions.';
+  }
+
   const radicalityPenalty = radicality.isRadical ? 0 : -12;
+  const swaraAdjustment =
+    swaraScorePct === null ? 0 : swaraScorePct >= 75 ? 4 : swaraScorePct <= 40 ? -6 : 0;
+
+  const scorePlanetStrength = (pos?: PlanetPosition): number => {
+    if (!pos) return 52;
+    let s = 56;
+    if ([1, 2, 4, 5, 7, 9, 10, 11].includes(pos.houseWholeSign)) s += 14;
+    else if ([6, 8, 12].includes(pos.houseWholeSign)) s -= 14;
+    else s -= 4;
+    if (['Exalted', 'Moolatrikona', 'Own Sign', 'Great Friend', 'Friend'].includes(pos.dignity)) s += 14;
+    else if (['Debilitated', 'Great Enemy', 'Enemy'].includes(pos.dignity)) s -= 14;
+    if (pos.isCombust) s -= 12;
+    else s += 4;
+    return Math.max(18, Math.min(95, s));
+  };
+
+  const udayaScore = lagnaSign.udaya === 'Shirshodaya' ? 78 : lagnaSign.udaya === 'Ubhayodaya' ? 62 : 44;
+  const lagnaLordStrength = Math.round(0.6 * scorePlanetStrength(byId.get(lagnaSign.lord)) + 0.4 * udayaScore);
+
+  const navAscIdxForMethod =
+    chart.prashna108Info?.navamsaSignIndex ?? Math.floor(chart.ascendantSidereal / (30 / 9)) % 12;
+  const navLord = SIGNS[navAscIdxForMethod].lord;
+  const navamsaStrength = scorePlanetStrength(byId.get(navLord));
+
+  const aksharaMap: Record<string, SevenPlanetId> = {
+    A: 'Sun',
+    Ka: 'Mars',
+    Cha: 'Venus',
+    Ta: 'Mercury',
+    Tha: 'Jupiter',
+    Pa: 'Saturn',
+    Ya_Sa: 'Moon',
+  };
+  const activeAksharaGroup = chart.input.pranaksharaGroup ?? 'A';
+  const aksharaRuler = aksharaMap[activeAksharaGroup] ?? 'Sun';
+  const aksharaRulerScore = scorePlanetStrength(byId.get(aksharaRuler));
+
+  const moonBaseStrength = scorePlanetStrength(moon);
+  const moonClarityScore = Math.max(
+    18,
+    Math.min(95, moonBaseStrength + (chart.panchanga.paksha === 'Shukla' ? 8 : -4))
+  );
+
+  const toTone = (s: number, hi = 66, mid = 48): { tone: 'good' | 'warn' | 'bad'; badge: 'Favourable' | 'Mixed' | 'Unfavourable' } =>
+    s >= hi
+      ? { tone: 'good', badge: 'Favourable' }
+      : s >= mid
+      ? { tone: 'warn', badge: 'Mixed' }
+      : { tone: 'bad', badge: 'Unfavourable' };
+
+  const activeCastingMeta = CASTING_METHOD_OPTIONS.find((m) => m.id === chart.input.castingMode);
+  const activeMethodLabel = activeCastingMeta?.label ?? 'Question Time Lagna';
+  const horaLagnaSign = SIGNS[chart.horaLagnaSignIndex ?? chart.ascendantSignIndex];
+  const horaLagnaLordScore = scorePlanetStrength(byId.get(horaLagnaSign.lord));
+
+  let methodBaseScore = 55;
+  const methodLayers: MethodLayerItem[] = [];
+
+  const horaLayerItem: MethodLayerItem = {
+    layerName: `Hora Lord (${horaLord} #${chart.panchanga.horaNumber}) & Hora Lagna (${horaLagnaSign.name})`,
+    scorePct: horaScorePct,
+    tone: horaTone,
+    badgeText: horaBadge,
+    shortOutcome: `${horaLord} Hora · ${horaScorePct}%`,
+    plainMeaning: `${horaMeaning} ${nextBestHoraNote}`,
+  };
+  const swaraLayerItem: MethodLayerItem = {
+    layerName: 'Nostril (Swara Yoga)',
+    scorePct: swaraScorePct,
+    tone: swaraTone,
+    badgeText: swaraBadge,
+    shortOutcome: swaraLabelMap[nostril],
+    plainMeaning: swaraMeaning,
+  };
+
+  switch (chart.input.castingMode) {
+    case 'kp_horary': {
+      methodBaseScore = 0.80 * kpScore + 0.20 * horaScorePct;
+      const kpT = toTone(kpScore, 65, 46);
+      const rpMatch = kp.cleanRulingPlanets.includes(kp.domainEvaluation.cuspSubLord) || kp.cleanRulingPlanets.length >= 3;
+      const rpScore = rpMatch ? 78 : 54;
+      const rpT = toTone(rpScore, 66, 48);
+      methodLayers.push(
+        {
+          layerName: '1. Selected KP Horary Number & Sub-Lord',
+          scorePct: kpScore,
+          tone: kpT.tone,
+          badgeText: kpT.badge,
+          shortOutcome: `KP #${chart.input.kpNumber} -> Cusp ${kp.domainEvaluation.primaryCusp} Sub-Lord ${kp.domainEvaluation.cuspSubLord} (${kpScore}%)`,
+          plainMeaning: kp.domainEvaluation.explanation,
+        },
+        {
+          layerName: '2. KP Ruling Planets & Moment Alignment',
+          scorePct: rpScore,
+          tone: rpT.tone,
+          badgeText: rpT.badge,
+          shortOutcome: kp.cleanRulingPlanets.join(', ') || 'Direct trigger awaited',
+          plainMeaning: rpMatch
+            ? `Active Ruling Planets (${kp.cleanRulingPlanets.join(', ')}) confirm and time this KP Horary promise.`
+            : 'Ruling Planets are partial; timing will activate when Moon or Transit touches the Cusp Sub-Lord star.',
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'number_108': {
+      methodBaseScore = 0.48 * navamsaStrength + 0.32 * tajikaScore + 0.20 * horaScorePct;
+      const lagnaT = toTone(lagnaLordStrength);
+      const navT = toTone(navamsaStrength);
+      const tajT = toTone(Math.round(tajikaScore), 68, 48);
+      methodLayers.push(
+        {
+          layerName: `1. Number ${chart.input.prashna108Number} -> Prasna Lagna (${lagnaSign.name})`,
+          scorePct: lagnaLordStrength,
+          tone: lagnaT.tone,
+          badgeText: lagnaT.badge,
+          shortOutcome: `${lagnaSign.name} Lagna (Lord ${lagnaSign.lord} · ${lagnaLordStrength}%)`,
+          plainMeaning: `${chart.specialMethodInfo?.summary ?? ''}. ${lagnaSign.name} is ${lagnaSign.udaya} and its lord ${lagnaSign.lord} is in House ${byId.get(lagnaSign.lord)?.houseWholeSign ?? 1}.`,
+        },
+        {
+          layerName: `2. Remainder -> Navamsa Lagna (${SIGNS[navAscIdxForMethod].name})`,
+          scorePct: navamsaStrength,
+          tone: navT.tone,
+          badgeText: navT.badge,
+          shortOutcome: `${SIGNS[navAscIdxForMethod].name} Navamsa (Lord ${navLord} · ${navamsaStrength}%)`,
+          plainMeaning: `Remainder sets ${SIGNS[navAscIdxForMethod].name} as Navamsa Lagna; its lord ${navLord} sits in House ${byId.get(navLord)?.houseWholeSign ?? 1} (${byId.get(navLord)?.dignity ?? 'Neutral'}) showing the underlying outcome.`,
+        },
+        {
+          layerName: '3. Lagna & Work-House Lord Connection (Tajika)',
+          scorePct: Math.round(tajikaScore),
+          tone: tajT.tone,
+          badgeText: tajT.badge,
+          shortOutcome: tajika.verdictLabel,
+          plainMeaning: tajika.summary,
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'hora_lagna': {
+      methodBaseScore = 0.52 * horaScorePct + 0.28 * horaLagnaLordScore + 0.20 * tajikaScore;
+      const hlT = toTone(horaLagnaLordScore);
+      const tajT = toTone(Math.round(tajikaScore), 68, 48);
+      methodLayers.push(
+        horaLayerItem,
+        {
+          layerName: `2. Hora Lagna Ascendant (${horaLagnaSign.name})`,
+          scorePct: horaLagnaLordScore,
+          tone: hlT.tone,
+          badgeText: hlT.badge,
+          shortOutcome: `${horaLagnaSign.name} (Lord ${horaLagnaSign.lord} in H${byId.get(horaLagnaSign.lord)?.houseWholeSign ?? 1})`,
+          plainMeaning: `${chart.specialMethodInfo?.summary ?? ''}. Hora Lagna lord ${horaLagnaSign.lord} holds ${byId.get(horaLagnaSign.lord)?.dignity ?? 'Neutral'} dignity (${horaLagnaLordScore}%).`,
+        },
+        {
+          layerName: '3. Work-House Connection from Hora Lagna',
+          scorePct: Math.round(tajikaScore),
+          tone: tajT.tone,
+          badgeText: tajT.badge,
+          shortOutcome: tajika.verdictLabel,
+          plainMeaning: tajika.summary,
+        },
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'ashtamangala': {
+      methodBaseScore = 0.65 * keralaScore + 0.20 * tajikaScore + 0.15 * horaScorePct;
+      const kerT = toTone(Math.round(keralaScore), 66, 46);
+      const tajT = toTone(Math.round(tajikaScore), 68, 48);
+      const triadScore = Math.max(25, Math.min(92, 56 + (kerala.ashtamangala.oddCount - 1.5) * 14));
+      const trT = toTone(Math.round(triadScore));
+      methodLayers.push(
+        {
+          layerName: '1. Ashtamangala 3-Number Triad',
+          scorePct: Math.round(triadScore),
+          tone: trT.tone,
+          badgeText: trT.badge,
+          shortOutcome: `Triad ${kerala.ashtamangala.piles.join('-')} (${kerala.ashtamangala.oddCount}/3 odd)`,
+          plainMeaning: chart.specialMethodInfo?.summary ?? kerala.ashtamangala.summary,
+        },
+        {
+          layerName: '2. 21-Point Bhava Foundation & Sign Rising',
+          scorePct: Math.round(keralaScore),
+          tone: kerT.tone,
+          badgeText: kerT.badge,
+          shortOutcome: `${kerala.bhavaRuin.verdict} (${Math.round(keralaScore)}%)`,
+          plainMeaning: kerala.udayaAnalysis.interpretation,
+        },
+        {
+          layerName: '3. Question & Gain House Yoga',
+          scorePct: Math.round(tajikaScore),
+          tone: tajT.tone,
+          badgeText: tajT.badge,
+          shortOutcome: tajika.verdictLabel,
+          plainMeaning: tajika.summary,
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'arudha_override': {
+      methodBaseScore = 0.50 * lagnaLordStrength + 0.35 * tajikaScore + 0.15 * horaScorePct;
+      const lagT = toTone(lagnaLordStrength);
+      const tajT = toTone(Math.round(tajikaScore), 68, 48);
+      methodLayers.push(
+        {
+          layerName: `1. Chosen Arudha Rasi (${lagnaSign.name}) & Lord (${lagnaSign.lord})`,
+          scorePct: lagnaLordStrength,
+          tone: lagT.tone,
+          badgeText: lagT.badge,
+          shortOutcome: `${lagnaSign.name} (${lagnaSign.udaya}) · ${lagnaLordStrength}%`,
+          plainMeaning: `${chart.specialMethodInfo?.summary ?? ''}. Lord ${lagnaSign.lord} in House ${byId.get(lagnaSign.lord)?.houseWholeSign ?? 1} shows how the Arudha seed unfolds.`,
+        },
+        {
+          layerName: '2. Work-House Connection from Chosen Rasi',
+          scorePct: Math.round(tajikaScore),
+          tone: tajT.tone,
+          badgeText: tajT.badge,
+          shortOutcome: tajika.verdictLabel,
+          plainMeaning: tajika.summary,
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'mooka_prashna': {
+      methodBaseScore = 0.45 * moonClarityScore + 0.35 * lagnaLordStrength + 0.20 * horaScorePct;
+      const moonT = toTone(moonClarityScore);
+      const lagT = toTone(lagnaLordStrength);
+      methodLayers.push(
+        {
+          layerName: `1. Unspoken Topic Inference (${mookBlind.natureOfQueryDhatuMoolaJeeva})`,
+          scorePct: moonClarityScore,
+          tone: moonT.tone,
+          badgeText: moonT.badge,
+          shortOutcome: `House ${mookBlind.inferredHouseFocus} · ${moonClarityScore}%`,
+          plainMeaning: `${chart.specialMethodInfo?.summary ?? ''} ${mookBlind.inferredTopicHint}`,
+        },
+        {
+          layerName: `2. Moon & Rising Sign (${lagnaSign.name}) Clarity`,
+          scorePct: lagnaLordStrength,
+          tone: lagT.tone,
+          badgeText: lagT.badge,
+          shortOutcome: `Moon in H${moon.houseWholeSign} (${moon.dignity})`,
+          plainMeaning: kerala.udayaAnalysis.interpretation,
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'akshara_prashna': {
+      methodBaseScore = 0.55 * aksharaRulerScore + 0.25 * lagnaLordStrength + 0.20 * horaScorePct;
+      const akT = toTone(aksharaRulerScore);
+      const lagT = toTone(lagnaLordStrength);
+      methodLayers.push(
+        {
+          layerName: `1. First Syllable Group (${activeAksharaGroup} -> Ruler ${aksharaRuler})`,
+          scorePct: aksharaRulerScore,
+          tone: akT.tone,
+          badgeText: akT.badge,
+          shortOutcome: `${aksharaRuler} in ${byId.get(aksharaRuler)?.signName} H${byId.get(aksharaRuler)?.houseWholeSign} (${aksharaRulerScore}%)`,
+          plainMeaning: `${chart.specialMethodInfo?.summary ?? ''} Syllable ruler ${aksharaRuler} sits in House ${byId.get(aksharaRuler)?.houseWholeSign ?? 1} (${byId.get(aksharaRuler)?.dignity ?? 'Neutral'}).`,
+        },
+        {
+          layerName: `2. Cast Lagna (${lagnaSign.name}) & Work Alignment`,
+          scorePct: lagnaLordStrength,
+          tone: lagT.tone,
+          badgeText: lagT.badge,
+          shortOutcome: `${lagnaSign.name} (${lagnaSign.udaya})`,
+          plainMeaning: tajika.summary,
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+    case 'time_lagna':
+    default: {
+      methodBaseScore =
+        0.48 * tajikaScore + 0.25 * lagnaLordStrength + 0.17 * keralaScore + 0.10 * horaScorePct + radicalityPenalty;
+      const lagT = toTone(lagnaLordStrength);
+      const tajT = toTone(Math.round(tajikaScore), 68, 48);
+      const radScore = radicality.isRadical ? 80 : 40;
+      const radT = toTone(radScore, 65, 45);
+      methodLayers.push(
+        {
+          layerName: `1. Question Time Lagna (${lagnaSign.name} · ${lagnaSign.udaya})`,
+          scorePct: lagnaLordStrength,
+          tone: lagT.tone,
+          badgeText: lagT.badge,
+          shortOutcome: `${lagnaSign.name} (Lord ${lagnaSign.lord} · ${lagnaLordStrength}%)`,
+          plainMeaning: `${lagnaSign.name} is ${lagnaSign.udaya === 'Shirshodaya' ? 'head-rising (smooth forward progress)' : lagnaSign.udaya === 'Prishtodaya' ? 'hind-rising (takes steady effort)' : 'dual-rising (adaptable progress)'}. Lord ${lagnaSign.lord} in House ${byId.get(lagnaSign.lord)?.houseWholeSign ?? 1}.`,
+        },
+        {
+          layerName: '2. Lagna & Work-House Lord Connection (Tajika)',
+          scorePct: Math.round(tajikaScore),
+          tone: tajT.tone,
+          badgeText: tajT.badge,
+          shortOutcome: tajika.verdictLabel,
+          plainMeaning: tajika.summary,
+        },
+        {
+          layerName: '3. Chart Clarity & Foundation Check',
+          scorePct: radScore,
+          tone: radT.tone,
+          badgeText: radT.badge,
+          shortOutcome: radicality.isRadical ? `Clear Question (${radicality.sincerityScore}/100)` : 'Mind / Time Advisory Present',
+          plainMeaning: radicality.isRadical
+            ? 'Time Lagna passes clarity checks cleanly; answer can be relied upon directly.'
+            : 'Some hesitation or late/early timing sign appears — double-check practical facts.',
+        },
+        horaLayerItem,
+        swaraLayerItem
+      );
+      break;
+    }
+  }
+
   const unifiedScorePct = Math.round(
-    Math.max(
-      5,
-      Math.min(
-        98,
-        0.33 * kpScore +
-          0.30 * tajikaScore +
-          0.22 * keralaScore +
-          0.15 * systemsApproach.saScorePct +
-          radicalityPenalty
-      )
-    )
+    Math.max(5, Math.min(98, methodBaseScore + swaraAdjustment))
   );
 
   let unifiedVerdict: DomainAnalysisReport['unifiedVerdict'] = 'Mixed / Conditional';
@@ -595,6 +1054,7 @@ export function synthesizeDomainReport(
   return {
     categoryLabel: catMeta.label,
     primaryHouse,
+    activeMethodLabel,
     unifiedVerdict,
     unifiedScorePct,
     threeSystemAlignment: {
@@ -603,6 +1063,26 @@ export function synthesizeDomainReport(
       kpVerdict: `${kp.domainEvaluation.verdict} (${kpScore}%)`,
       systemsApproachVerdict: `${systemsApproach.saScorePct >= 65 ? 'Supportive' : systemsApproach.saScorePct >= 48 ? 'Afflicted / Mixed' : 'Weak / Afflicted'} (${systemsApproach.saScorePct}%)`,
     },
+    horaAnalysis: {
+      horaLord,
+      horaNumber: chart.panchanga.horaNumber,
+      horaLagnaSignName: chart.horaLagnaSignName,
+      horaScorePct,
+      tone: horaTone,
+      badgeText: horaBadge,
+      plainMeaning: horaMeaning,
+      nextBestHoraNote,
+    },
+    swaraAnalysis: {
+      checked: nostril !== 'unknown',
+      nostrilLabel: swaraLabelMap[nostril],
+      positionLabel: swaraPosLabelMap[swaraPos],
+      scorePct: swaraScorePct,
+      tone: swaraTone,
+      badgeText: swaraBadge,
+      plainMeaning: swaraMeaning,
+    },
+    methodLayers,
     citations,
     coraTheft,
     medicalBadha,

@@ -3,7 +3,7 @@ import { SIGNS } from '../astro/constants';
 import type { CompleteHoraryAnalysis } from '../astro/horaryAnalyzer';
 import { getTopicMeta } from '../astro/questionCatalog';
 
-type SecondaryChartMode = 'kp_bhava' | 'd9';
+type SecondaryChartMode = 'kp_bhava' | 'd9' | 'hora_lagna';
 
 interface VedicChartsProps {
   analysis: CompleteHoraryAnalysis;
@@ -210,6 +210,27 @@ export const VedicCharts: React.FC<VedicChartsProps> = ({ analysis }) => {
       };
     }
 
+    if (secondaryMode === 'hora_lagna') {
+      const hlAsc = chart.horaLagnaSignIndex;
+      const houseSigns = Array.from({ length: 12 }, (_, i) => (hlAsc + i) % 12);
+      chart.planets.forEach((p) => {
+        const h = ((p.signIndex - hlAsc + 12) % 12) + 1;
+        byHouse.get(h)!.push({
+          label: `${p.short}${p.isRetrograde && p.id !== 'Rahu' && p.id !== 'Ketu' ? '*' : ''}`,
+          title: `${p.id} in Hora Lagna House ${h} (${p.signName})`,
+          isRetro: p.isRetrograde && p.id !== 'Rahu' && p.id !== 'Ketu',
+          isCombust: p.isCombust,
+        });
+      });
+      return {
+        ascSignIdx: hlAsc,
+        houseSigns,
+        byHouse,
+        title: `Hora Lagna Chart (${chart.horaLagnaSignName})`,
+        eyebrow: `Active Hora: ${chart.panchanga.horaLord} (#${chart.panchanga.horaNumber})`,
+      };
+    }
+
     const baseNavAsc = Math.floor(chart.ascendantSidereal / (30 / 9)) % 12;
     const houseSigns = Array.from({ length: 12 }, (_, i) => (baseNavAsc + i) % 12);
     chart.planets.forEach((p) => {
@@ -255,22 +276,18 @@ export const VedicCharts: React.FC<VedicChartsProps> = ({ analysis }) => {
         focusHouses={topicMeta.focusHouses}
         primaryFocusHouse={primaryFocusHouse}
         headerRight={
-          <div className="segmented-group" role="tablist" aria-label="Secondary chart selector">
-            <button
-              type="button"
-              className={`seg-btn ${secondaryMode === 'kp_bhava' ? 'active' : ''}`}
-              onClick={() => setSecondaryMode('kp_bhava')}
+          <label className="field" style={{ minWidth: 155 }}>
+            <select
+              aria-label="Secondary chart view"
+              value={secondaryMode}
+              onChange={(e) => setSecondaryMode(e.target.value as SecondaryChartMode)}
+              style={{ minHeight: 36, padding: '4px 8px', fontSize: '0.8rem' }}
             >
-              KP Bhava
-            </button>
-            <button
-              type="button"
-              className={`seg-btn ${secondaryMode === 'd9' ? 'active' : ''}`}
-              onClick={() => setSecondaryMode('d9')}
-            >
-              Navamsa D-9
-            </button>
-          </div>
+              <option value="kp_bhava">KP Bhava / Horary Chart</option>
+              <option value="d9">Navamsa Strength (D-9)</option>
+              <option value="hora_lagna">Hora Lagna Chart</option>
+            </select>
+          </label>
         }
       />
     </div>

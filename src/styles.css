@@ -1557,6 +1557,71 @@ a {
   }
 }
 
+.nichod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.nichod-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nichod-card.tone-good {
+  border-left-color: var(--good);
+  background: color-mix(in srgb, var(--good-bg) 42%, var(--surface));
+}
+
+.nichod-card.tone-warn {
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn-bg) 42%, var(--surface));
+}
+
+.nichod-card.tone-bad {
+  border-left-color: var(--bad);
+  background: color-mix(in srgb, var(--bad-bg) 42%, var(--surface));
+}
+
+.nichod-card.tone-info {
+  border-left-color: var(--text-muted);
+}
+
+.nichod-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nichod-short {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.nichod-meaning {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.callout-neutral {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 0.84rem;
+}
+
 @media print {
   .no-print {
     display: none !important;

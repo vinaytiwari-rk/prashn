@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BookOpen,
   ClipboardList,
   Clock,
   Compass,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { runCompleteHoraryAnalysis } from './astro/horaryAnalyzer';
 import {
+  ASKING_ABOUT_OPTIONS,
   QUESTION_TOPIC_CATALOG,
   getTopicMeta,
 } from './astro/questionCatalog';
@@ -28,6 +30,7 @@ import {
   type SessionQuestionItemBasic,
 } from './components/BasicDetailsPage';
 import { CalculationsPage } from './components/CalculationsPage';
+import { MeaningsGuidePage } from './components/MeaningsGuidePage';
 import { PredictionsPage } from './components/PredictionsPage';
 import {
   lookupTimezoneForCoords,
@@ -37,7 +40,7 @@ import {
   type CityResult,
 } from './data/citySearch';
 
-type AppPage = 'basic' | 'calculations' | 'predictions';
+type AppPage = 'basic' | 'calculations' | 'guide' | 'predictions';
 
 interface SharedConfig {
   querentName: string;
@@ -84,12 +87,18 @@ function createInitialState(): {
         id: 'q-1',
         questionText: QUESTION_TOPIC_CATALOG[0].presets[0],
         category: 'general_yes_no',
+        askingAboutKey: 'self',
         askingAboutHouse: 1,
         localDate: nowParts.localDate,
         localTime: nowParts.localTime,
         castingMode: 'time_lagna',
         prashna108Number: 78,
         kpNumber: 94,
+        arudhaSignIndex: 0,
+        ashtamangalaPiles: [35, 37, 36],
+        pranaksharaGroup: 'A',
+        swaraNostril: 'unknown',
+        swaraPosition: 'unknown',
       },
     ],
   };
@@ -177,6 +186,7 @@ export const App: React.FC = () => {
       questions.map((q, idx) => {
         const order = Math.min(5, idx + 1) as 1 | 2 | 3 | 4 | 5;
         const anchorTimeQuestion = shared.multiQuestionMode === 'rotate_chart' ? questions[0] : q;
+        const askingMeta = ASKING_ABOUT_OPTIONS.find((o) => o.key === q.askingAboutKey);
         const queryInput: HoraryQueryInput = {
           querentName: shared.querentName,
           questionText: q.questionText,
@@ -184,6 +194,7 @@ export const App: React.FC = () => {
           queryIndexInSession: order,
           multiQuestionMode: shared.multiQuestionMode,
           askingAboutHouse: q.askingAboutHouse,
+          askingAboutRole: askingMeta?.label,
           localDate: anchorTimeQuestion.localDate,
           localTime: anchorTimeQuestion.localTime,
           latitude: shared.latitude,
@@ -193,12 +204,14 @@ export const App: React.FC = () => {
           castingMode: anchorTimeQuestion.castingMode,
           prashna108Number: anchorTimeQuestion.prashna108Number,
           kpNumber: anchorTimeQuestion.kpNumber,
-          arudhaSignIndex: 0,
+          arudhaSignIndex: anchorTimeQuestion.arudhaSignIndex,
           ayanamsa: shared.ayanamsa,
           houseSystem: shared.houseSystem,
           nodeMode: shared.nodeMode,
-          swaraNostril: 'unknown',
-          ashtamangalaPiles: [35, 37, 36],
+          swaraNostril: q.swaraNostril,
+          swaraPosition: q.swaraPosition,
+          ashtamangalaPiles: anchorTimeQuestion.ashtamangalaPiles,
+          pranaksharaGroup: anchorTimeQuestion.pranaksharaGroup,
           querentAge: shared.querentAge,
           settings: shared.settings,
         };
@@ -232,7 +245,10 @@ export const App: React.FC = () => {
             'localTime' in patch ||
             'castingMode' in patch ||
             'prashna108Number' in patch ||
-            'kpNumber' in patch)
+            'kpNumber' in patch ||
+            'arudhaSignIndex' in patch ||
+            'ashtamangalaPiles' in patch ||
+            'pranaksharaGroup' in patch)
         ) {
           const timePatch: Partial<SessionQuestionItemBasic> = {};
           if (patch.localDate !== undefined) timePatch.localDate = patch.localDate;
@@ -240,6 +256,9 @@ export const App: React.FC = () => {
           if (patch.castingMode !== undefined) timePatch.castingMode = patch.castingMode;
           if (patch.prashna108Number !== undefined) timePatch.prashna108Number = patch.prashna108Number;
           if (patch.kpNumber !== undefined) timePatch.kpNumber = patch.kpNumber;
+          if (patch.arudhaSignIndex !== undefined) timePatch.arudhaSignIndex = patch.arudhaSignIndex;
+          if (patch.ashtamangalaPiles !== undefined) timePatch.ashtamangalaPiles = patch.ashtamangalaPiles;
+          if (patch.pranaksharaGroup !== undefined) timePatch.pranaksharaGroup = patch.pranaksharaGroup;
           return isTarget ? { ...item, ...patch } : { ...item, ...timePatch };
         }
         return isTarget ? { ...item, ...patch } : item;
@@ -264,12 +283,18 @@ export const App: React.FC = () => {
       id,
       questionText: meta.presets[0],
       category: suggestedCat,
+      askingAboutKey: 'self',
       askingAboutHouse: 1,
       localDate: nowParts.localDate,
       localTime: nowParts.localTime,
       castingMode: activeQuestion.castingMode,
       prashna108Number: ((activeQuestion.prashna108Number + 17) % 108) + 1,
       kpNumber: ((activeQuestion.kpNumber + 23) % 249) + 1,
+      arudhaSignIndex: activeQuestion.arudhaSignIndex,
+      ashtamangalaPiles: activeQuestion.ashtamangalaPiles,
+      pranaksharaGroup: activeQuestion.pranaksharaGroup,
+      swaraNostril: activeQuestion.swaraNostril,
+      swaraPosition: activeQuestion.swaraPosition,
     };
     setQuestions((prev) => [...prev, newItem]);
     setActiveId(id);
@@ -367,13 +392,14 @@ export const App: React.FC = () => {
         </p>
       </div>
 
-      {/* Simple 3-Page Navigation */}
+      {/* Simple 4-Page Navigation */}
       <nav className="workbench-tabs no-print" aria-label="Software Pages">
         {(
           [
-            ['basic', '1. Basic Details & Meanings'],
-            ['calculations', '2. Calculations & Chart'],
-            ['predictions', '3. Predictions & Remedies'],
+            ['basic', '1. Basic Details'],
+            ['calculations', '2. Charts & Calculations'],
+            ['guide', '3. Rashi & Planet Guide'],
+            ['predictions', '4. Predictions & Remedies'],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -478,6 +504,7 @@ export const App: React.FC = () => {
             onUpdateActiveQuestion={updateActiveQuestion}
             analysis={analysis}
             onGoToCalculations={() => navigateToPage('calculations')}
+            onGoToGuide={() => navigateToPage('guide')}
             onGoToPredictions={() => navigateToPage('predictions')}
           />
         ) : activePage === 'calculations' ? (
@@ -485,6 +512,13 @@ export const App: React.FC = () => {
             analysis={analysis}
             totalQuestions={questions.length}
             onBackToBasicDetails={() => navigateToPage('basic')}
+            onGoToGuide={() => navigateToPage('guide')}
+            onGoToPredictions={() => navigateToPage('predictions')}
+          />
+        ) : activePage === 'guide' ? (
+          <MeaningsGuidePage
+            analysis={analysis}
+            onBackToCalculations={() => navigateToPage('calculations')}
             onGoToPredictions={() => navigateToPage('predictions')}
           />
         ) : (
@@ -495,11 +529,12 @@ export const App: React.FC = () => {
             onSelectQuestion={(id) => setActiveId(id)}
             onBackToBasicDetails={() => navigateToPage('basic')}
             onBackToCalculations={() => navigateToPage('calculations')}
+            onGoToGuide={() => navigateToPage('guide')}
           />
         )}
       </main>
 
-      {/* Mobile App Bottom Navigation Menu */}
+      {/* Mobile App Bottom Navigation Menu (4 Pages) */}
       <nav className="mobile-bottom-nav no-print" aria-label="Bottom Navigation">
         <button
           type="button"
@@ -519,7 +554,17 @@ export const App: React.FC = () => {
           <span className="mobile-nav-icon-pill">
             <Compass size={19} />
           </span>
-          <span>Chart &amp; KP</span>
+          <span>Charts</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-nav-item ${activePage === 'guide' && !showSettings ? 'active' : ''}`}
+          onClick={() => navigateToPage('guide')}
+        >
+          <span className="mobile-nav-icon-pill">
+            <BookOpen size={19} />
+          </span>
+          <span>Guide</span>
         </button>
         <button
           type="button"
@@ -529,17 +574,7 @@ export const App: React.FC = () => {
           <span className="mobile-nav-icon-pill">
             <Sparkles size={19} />
           </span>
-          <span>Predictions</span>
-        </button>
-        <button
-          type="button"
-          className={`mobile-nav-item ${showSettings ? 'active' : ''}`}
-          onClick={() => setShowSettings((v) => !v)}
-        >
-          <span className="mobile-nav-icon-pill">
-            <Sliders size={19} />
-          </span>
-          <span>Settings</span>
+          <span>Predict</span>
         </button>
       </nav>
 

@@ -1,4 +1,103 @@
-import type { QuestionCategory } from './types';
+import type {
+  AskingAboutHouse,
+  ChartCastingMode,
+  QuestionCategory,
+  SwaraNostril,
+  SwaraPosition,
+} from './types';
+
+export interface AskingAboutOption {
+  key: string;
+  house: AskingAboutHouse;
+  label: string;
+  plainNote: string;
+}
+
+export const ASKING_ABOUT_OPTIONS: AskingAboutOption[] = [
+  { key: 'self', house: 1, label: 'Myself (House 1)', plainNote: 'Direct chart — House 1 stays your own Lagna.' },
+  { key: 'spouse', house: 7, label: 'My Spouse / Partner (House 7)', plainNote: 'House 7 rotates to become your partner’s 1st house.' },
+  { key: 'child', house: 5, label: 'My Son / Daughter / Child (House 5)', plainNote: 'House 5 rotates to become your child’s 1st house.' },
+  { key: 'friend', house: 11, label: 'My Friend (House 11)', plainNote: 'House 11 (Mitra Bhava) rotates to read your friend’s situation.' },
+  { key: 'neighbour', house: 3, label: 'My Neighbour (House 3)', plainNote: 'House 3 (neighbour/nearby circle) rotates to House 1.' },
+  { key: 'sibling', house: 3, label: 'My Sibling / Brother / Sister (House 3)', plainNote: 'House 3 rotates to become your sibling’s 1st house.' },
+  { key: 'mother', house: 4, label: 'My Mother (House 4)', plainNote: 'House 4 rotates to become your mother’s 1st house.' },
+  { key: 'maternal_relative', house: 6, label: 'My Maternal Relative — Mama / Mausi / Cousin (House 6)', plainNote: 'House 6 (Matula / maternal kin) rotates to House 1.' },
+  { key: 'other_relative', house: 4, label: 'My Other Relative / Extended Family (House 4)', plainNote: 'House 4 (family roots & relatives) rotates to House 1.' },
+  { key: 'father', house: 9, label: 'My Father / Elder / Mentor (House 9)', plainNote: 'House 9 rotates to become your father/elder’s 1st house.' },
+  { key: 'boss', house: 10, label: 'My Boss / Manager / Workplace (House 10)', plainNote: 'House 10 rotates to inspect authority & senior leadership.' },
+];
+
+export interface CastingMethodOption {
+  id: ChartCastingMode;
+  label: string;
+  shortTag: string;
+  description: string;
+}
+
+export const CASTING_METHOD_OPTIONS: CastingMethodOption[] = [
+  {
+    id: 'time_lagna',
+    label: '1. Question Time (Samaya Lagna)',
+    shortTag: 'Time Lagna',
+    description: 'Uses the exact question date, time, and city rising sign (Uday Lagna).',
+  },
+  {
+    id: 'number_108',
+    label: '2. Number 1–108 (Navamsa Prashna)',
+    shortTag: '1–108 Method',
+    description: 'Divides your 1–108 number by 9: quotient sets Lagna Sign, remainder sets Navamsa.',
+  },
+  {
+    id: 'kp_horary',
+    label: '3. KP Horary (1–249 Sub-Lord)',
+    shortTag: 'KP 1–249',
+    description: 'Uses your 1–249 number to fix exact Sub-Lord degree & Placidus house cusps.',
+  },
+  {
+    id: 'arudha_override',
+    label: '4. Arudha Lagna (1–12 Sign Pick)',
+    shortTag: 'Arudha Sign',
+    description: 'Sets House 1 from the 1–12 zodiac sign or Rashi Chakra position selected.',
+  },
+  {
+    id: 'ashtamangala',
+    label: '5. Ashtamangala (3-Number Triad)',
+    shortTag: 'Ashtamangala',
+    description: 'Uses 3 numbers (cowrie piles) Mod-8 & triad balance to cast & weigh the chart.',
+  },
+  {
+    id: 'hora_lagna',
+    label: '6. Hora Lagna (Hour Ascendant)',
+    shortTag: 'Hora Lagna',
+    description: 'Advances 1 sign per hour from sunrise Sun longitude & prioritizes active Hora Lord.',
+  },
+  {
+    id: 'mooka_prashna',
+    label: '7. Mooka Prashna (Unspoken / Silent Question)',
+    shortTag: 'Mooka Prashna',
+    description: 'Infers the unspoken question topic (Dhatu / Moola / Jeeva) from Lagna, Hora & Moon.',
+  },
+  {
+    id: 'akshara_prashna',
+    label: '8. Akshara / Name Sound (First Syllable)',
+    shortTag: 'Akshara Sound',
+    description: 'Maps the first spoken syllable/letter group to its ruling planet & element sign.',
+  },
+];
+
+export const SWARA_OPTIONS: { id: SwaraNostril; label: string; hint: string }[] = [
+  { id: 'unknown', label: 'Not Checked (Skip Nostril Test)', hint: 'Uses chart, KP, Tajika & Hora only.' },
+  { id: 'left_ida', label: 'Left Nostril — Ida / Moon Swara (Calm & Auspicious)', hint: 'Favours peaceful, steady, marriage, learning, buying & soft tasks.' },
+  { id: 'right_pingala', label: 'Right Nostril — Pingala / Sun Swara (Active & Forceful)', hint: 'Favours bold action, interviews, legal battles, property & competition.' },
+  { id: 'both_sushumna', label: 'Both Nostrils Equally — Sushumna (Transitional / Unsettled)', hint: 'Pause before rushing material decisions; favours reflection & remedies.' },
+];
+
+export const SWARA_POSITION_OPTIONS: { id: SwaraPosition; label: string }[] = [
+  { id: 'unknown', label: 'Position Not Checked' },
+  { id: 'same_side', label: 'Querent Seated on Active Nostril Side (Strong Support)' },
+  { id: 'opposite_side', label: 'Querent Seated on Opposite Side (Extra Effort)' },
+  { id: 'front', label: 'Querent Directly in Front / Facing' },
+];
 
 export interface QuestionTopicMeta {
   id: QuestionCategory;
@@ -247,19 +346,33 @@ export function detectQuestionCategory(text: string): QuestionCategory | null {
 }
 
 /**
- * Detects third-party questions (e.g. "Will my son get a job?") where the chart
+ * Detects third-party questions (e.g. "Will my son/friend/neighbour get a job?") where the chart
  * should rotate to that person's house, while keeping "Will I have a son?" on House 1.
  */
-export function detectAskingAboutHouse(text: string): 1 | 3 | 4 | 5 | 7 | 9 {
+export function detectAskingAboutKey(text: string): string {
   const q = text.toLowerCase();
   if (/\bmy\s+(son|daughter|child|kid)\b/i.test(q) && !/\bhave a (son|daughter|child|baby)\b/i.test(q)) {
-    return 5;
+    return 'child';
+  }
+  if (/\bmy\s+(best\s+)?friend\b/i.test(q)) return 'friend';
+  if (/\bmy\s+neighbou?r\b/i.test(q)) return 'neighbour';
+  if (/\b(mama|mami|mausi|mausa|maternal\s+(uncle|aunt|relative)|cousin)\b/i.test(q)) {
+    return 'maternal_relative';
+  }
+  if (/\bmy\s+(relative|uncle|aunt|nephew|niece|in-?law|family member)\b/i.test(q)) {
+    return 'other_relative';
   }
   if (/\bmy\s+(spouse|husband|wife|partner)\b/i.test(q) && /\b(job|career|health|exam|travel|visa|case|promotion)\b/i.test(q)) {
-    return 7;
+    return 'spouse';
   }
-  if (/\bmy\s+(mother|mom|mum)\b/i.test(q)) return 4;
-  if (/\bmy\s+(father|dad)\b/i.test(q)) return 9;
-  if (/\bmy\s+(brother|sister|sibling)\b/i.test(q)) return 3;
-  return 1;
+  if (/\bmy\s+(mother|mom|mum)\b/i.test(q)) return 'mother';
+  if (/\bmy\s+(father|dad)\b/i.test(q)) return 'father';
+  if (/\bmy\s+(boss|manager|supervisor)\b/i.test(q)) return 'boss';
+  if (/\bmy\s+(brother|sister|sibling)\b/i.test(q)) return 'sibling';
+  return 'self';
+}
+
+export function detectAskingAboutHouse(text: string): AskingAboutHouse {
+  const key = detectAskingAboutKey(text);
+  return ASKING_ABOUT_OPTIONS.find((opt) => opt.key === key)?.house ?? 1;
 }

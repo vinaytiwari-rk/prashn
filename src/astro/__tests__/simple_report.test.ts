@@ -197,4 +197,76 @@ describe('Plain-English SimpleHoraryReport Formatting', () => {
     expect(method2Report.chartContextNote).toContain('Sagittarius Lagna');
     expect(method2Report.chartContextNote).toContain('Virgo Navamsa');
   });
+
+  it('supports friend, neighbour & relative rotation, all 8 calculation methods, Hora/Swara, and method-specific predictions without leaking references', () => {
+    // Auto-detection of newly added relationships
+    expect(detectAskingAboutHouse('Will my friend get this job?')).toBe(11);
+    expect(detectAskingAboutHouse('Will my neighbour sell the house?')).toBe(3);
+    expect(detectAskingAboutHouse('Will my mama recover soon?')).toBe(6);
+    expect(detectAskingAboutHouse('Will my uncle return home?')).toBe(4);
+
+    // Verify 11th house rotation for My Friend
+    const selfChart = runCompleteHoraryAnalysis(makeSimpleInput({ askingAboutHouse: 1 }));
+    const friendChart = runCompleteHoraryAnalysis(
+      makeSimpleInput({
+        askingAboutHouse: 11,
+        askingAboutRole: 'My Friend (House 11)',
+        questionText: 'Will my friend get this job?',
+      })
+    );
+    expect(friendChart.chart.rotatedReference?.isRotated).toBe(true);
+    expect(friendChart.chart.ascendantSignIndex).toBe((selfChart.chart.ascendantSignIndex + 10) % 12);
+
+    // Verify Hora Lagna, Ashtamangala, Akshara, and Mooka Prashna modes + method-specific breakdown
+    const horaRes = runCompleteHoraryAnalysis(makeSimpleInput({ castingMode: 'hora_lagna' }));
+    expect(horaRes.chart.horaLagnaSignIndex).toBeGreaterThanOrEqual(0);
+    expect(horaRes.chart.horaLagnaSignIndex).toBeLessThan(12);
+    expect(horaRes.chart.ascendantSignIndex).toBe(horaRes.chart.horaLagnaSignIndex);
+    expect(horaRes.chart.specialMethodInfo?.methodId).toBe('hora_lagna');
+
+    const ashtaRes = runCompleteHoraryAnalysis(
+      makeSimpleInput({ castingMode: 'ashtamangala', ashtamangalaPiles: [24, 19, 31] })
+    );
+    expect(ashtaRes.chart.specialMethodInfo?.methodId).toBe('ashtamangala');
+
+    const aksharaRes = runCompleteHoraryAnalysis(
+      makeSimpleInput({ castingMode: 'akshara_prashna', pranaksharaGroup: 'Cha' })
+    );
+    expect(aksharaRes.chart.specialMethodInfo?.methodId).toBe('akshara_prashna');
+
+    const mookaRes = runCompleteHoraryAnalysis(makeSimpleInput({ castingMode: 'mooka_prashna' }));
+    expect(mookaRes.chart.specialMethodInfo?.methodId).toBe('mooka_prashna');
+
+    // Swara Nostril check: Ida Same Side vs Sushumna
+    const idaCalm = runCompleteHoraryAnalysis(
+      makeSimpleInput({
+        category: 'marriage_relationship',
+        swaraNostril: 'left_ida',
+        swaraPosition: 'same_side',
+      })
+    );
+    const sushumna = runCompleteHoraryAnalysis(
+      makeSimpleInput({
+        category: 'marriage_relationship',
+        swaraNostril: 'both_sushumna',
+        swaraPosition: 'unknown',
+      })
+    );
+    expect(idaCalm.domain.swaraAnalysis.checked).toBe(true);
+    expect(idaCalm.domain.swaraAnalysis.tone).toBe('good');
+    expect(sushumna.domain.swaraAnalysis.tone).toBe('bad');
+
+    // Verify method-specific breakdown & scores differ appropriately per chosen calculation method
+    const rep = buildSimpleHoraryReport(idaCalm);
+    expect(rep.methodSummary.layers.length).toBe(5);
+    const kpOnlyRep = buildSimpleHoraryReport(
+      runCompleteHoraryAnalysis(makeSimpleInput({ castingMode: 'kp_horary', kpNumber: 94 }))
+    );
+    expect(kpOnlyRep.methodSummary.methodLabel).toContain('KP Horary');
+    expect(kpOnlyRep.methodSummary.layers[0].layerName).toContain('KP Horary');
+    expect(kpOnlyRep.methodSummary.layers.length).toBe(4);
+    expect(buildSimpleHoraryReport(horaRes).methodSummary.methodLabel).toContain('Hora Lagna');
+    const joinedMethod = JSON.stringify(rep.methodSummary) + JSON.stringify(kpOnlyRep.methodSummary);
+    expect(joinedMethod).not.toMatch(/pdf|page\s+\d|krishnamurti|raman|tajika\s+nilakanthi|prashna\s+marga|http|openai|gemini|determinis|nichod|sabhi/i);
+  });
 });

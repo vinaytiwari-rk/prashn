@@ -615,12 +615,46 @@ export function computeHoraryChart(input: HoraryQueryInput): CastHoraryChart {
   const naturalAscTrop = ascFromRamcTropical(naturalRamc, input.latitude, obliquityDeg);
   const naturalAscSid = normalizeDeg(naturalAscTrop - ayanamsaDeg);
 
+  // Sunrise & Sunset (used by Hora Lagna, Hora Schedule & Panchanga)
+  const sunSidLon = normalizeDeg(tropMap.get('Sun')!.lon - ayanamsaDeg);
+  const observer = new Astronomy.Observer(input.latitude, input.longitude, 0);
+  const searchBack = new Astronomy.AstroTime(new Date(utcMs - 36 * 3600_000));
+  const rises: number[] = [];
+  const sets: number[] = [];
+  let rCursor = searchBack;
+  for (let i = 0; i < 3; i++) {
+    const r = Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, +1, rCursor, 2);
+    if (!r) break;
+    rises.push(r.date.getTime());
+    rCursor = r.AddDays(0.1);
+  }
+  let sCursor = searchBack;
+  for (let i = 0; i < 3; i++) {
+    const s = Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, -1, sCursor, 2);
+    if (!s) break;
+    sets.push(s.date.getTime());
+    sCursor = s.AddDays(0.1);
+  }
+
+  const sunriseMs = rises.filter((t) => t <= utcMs).pop() ?? utcMs - 6 * 3600_000;
+  const nextSunriseMs = rises.find((t) => t > utcMs) ?? sunriseMs + 24 * 3600_000;
+  const sunsetMs = sets.find((t) => t > sunriseMs && t < nextSunriseMs) ?? sunriseMs + 12 * 3600_000;
+  const isDaytime = utcMs >= sunriseMs && utcMs < sunsetMs;
+
+  const sunriseSunTrop = getTropicalPosition('Sun', new Astronomy.AstroTime(new Date(sunriseMs)), input.nodeMode);
+  const sunSidAtSunrise = normalizeDeg(sunriseSunTrop.lon - ayanamsaDeg);
+  const hoursFromSunrise = Math.max(0, (utcMs - sunriseMs) / 3600_000);
+  const horaLagnaSidereal = normalizeDeg(sunSidAtSunrise + hoursFromSunrise * 30);
+  const horaLagnaSignIndex = Math.floor(horaLagnaSidereal / 30) % 12;
+  const horaLagnaSignName = SIGNS[horaLagnaSignIndex].name;
+
   // Determine active Ascendant & RAMC based on castingMode
   let ascendantSidereal = naturalAscSid;
   let activeRamc = naturalRamc;
   let activeKpSlot: Kp249Slot | null = null;
   let effectiveAyanForHouses = ayanamsaDeg;
   let prashna108Info: CastHoraryChart['prashna108Info'] = undefined;
+  let specialMethodInfo: CastHoraryChart['specialMethodInfo'] = undefined;
 
   if (input.castingMode === 'number_108') {
     const num108 = Math.max(1, Math.min(108, Math.round(input.prashna108Number ?? 78)));
@@ -640,6 +674,11 @@ export function computeHoraryChart(input: HoraryQueryInput): CastHoraryChart {
       navamsaSignIndex,
       navamsaSignName: SIGNS[navamsaSignIndex].name,
     };
+    specialMethodInfo = {
+      methodId: 'number_108',
+      methodLabel: 'Number 1–108 (Navamsa Prashna)',
+      summary: `${num108} ÷ 9 -> ${SIGNS[signsElapsed].name} Lagna & ${SIGNS[navamsaSignIndex].name} Navamsa`,
+    };
   } else if (input.castingMode === 'kp_horary') {
     const num = Math.max(1, Math.min(249, Math.round(input.kpNumber || 1)));
     activeKpSlot = KP_249_TABLE[num - 1];
@@ -647,12 +686,76 @@ export function computeHoraryChart(input: HoraryQueryInput): CastHoraryChart {
     const targetAscTrop = normalizeDeg(ascendantSidereal + kpAyanamsaDeg);
     activeRamc = solveRamcForAscendant(targetAscTrop, input.latitude, obliquityDeg);
     effectiveAyanForHouses = kpAyanamsaDeg;
+    specialMethodInfo = {
+      methodId: 'kp_horary',
+      methodLabel: 'KP Horary (1–249)',
+      summary: `KP #${num} -> ${activeKpSlot.signName} (Star ${activeKpSlot.starLord} / Sub ${activeKpSlot.subLord})`,
+    };
   } else if (input.castingMode === 'arudha_override') {
     const arudhaSign = ((Math.round(input.arudhaSignIndex) % 12) + 12) % 12;
     const natDegInSign = naturalAscSid % 30;
     ascendantSidereal = arudhaSign * 30 + natDegInSign;
     const targetAscTrop = normalizeDeg(ascendantSidereal + ayanamsaDeg);
     activeRamc = solveRamcForAscendant(targetAscTrop, input.latitude, obliquityDeg);
+    specialMethodInfo = {
+      methodId: 'arudha_override',
+      methodLabel: 'Arudha Lagna (1–12 Sign)',
+      summary: `Arudha Sign #${arudhaSign + 1} (${SIGNS[arudhaSign].name}) fixed as House 1`,
+    };
+  } else if (input.castingMode === 'hora_lagna') {
+    ascendantSidereal = horaLagnaSidereal;
+    const targetAscTrop = normalizeDeg(ascendantSidereal + ayanamsaDeg);
+    activeRamc = solveRamcForAscendant(targetAscTrop, input.latitude, obliquityDeg);
+    specialMethodInfo = {
+      methodId: 'hora_lagna',
+      methodLabel: 'Hora Lagna (Hour Ascendant)',
+      summary: `${hoursFromSunrise.toFixed(1)} hrs after sunrise -> ${horaLagnaSignName} Hora Lagna`,
+    };
+  } else if (input.castingMode === 'ashtamangala') {
+    const [p1, p2, p3] = input.ashtamangalaPiles ?? [35, 37, 36];
+    const r1 = p1 % 8 === 0 ? 8 : p1 % 8;
+    const r2 = p2 % 8 === 0 ? 8 : p2 % 8;
+    const r3 = p3 % 8 === 0 ? 8 : p3 % 8;
+    const signIdx = ((p1 + p2 + p3 - 1) % 12 + 12) % 12;
+    const degInside = ((r2 - 1) * 3.75 + r3 * 0.4) % 30;
+    ascendantSidereal = normalizeDeg(signIdx * 30 + degInside);
+    const targetAscTrop = normalizeDeg(ascendantSidereal + ayanamsaDeg);
+    activeRamc = solveRamcForAscendant(targetAscTrop, input.latitude, obliquityDeg);
+    specialMethodInfo = {
+      methodId: 'ashtamangala',
+      methodLabel: 'Ashtamangala (3-Number Triad)',
+      summary: `Numbers ${p1}, ${p2}, ${p3} (Mod-8: ${r1}-${r2}-${r3}) -> ${SIGNS[signIdx].name} Lagna`,
+    };
+  } else if (input.castingMode === 'akshara_prashna') {
+    const groupSignMap: Record<string, number> = {
+      A: 4, // Sun -> Leo
+      Ka: 0, // Mars -> Aries
+      Cha: 6, // Venus -> Libra
+      Ta: 5, // Mercury -> Virgo
+      Tha: 8, // Jupiter -> Sagittarius
+      Pa: 9, // Saturn -> Capricorn
+      Ya_Sa: 3, // Moon -> Cancer
+    };
+    const grp = input.pranaksharaGroup && groupSignMap[input.pranaksharaGroup] !== undefined ? input.pranaksharaGroup : 'A';
+    const numSignIdx =
+      input.pranaksharaNumber && input.pranaksharaNumber > 0
+        ? (input.pranaksharaNumber - 1) % 12
+        : groupSignMap[grp];
+    const natDegInSign = naturalAscSid % 30;
+    ascendantSidereal = numSignIdx * 30 + natDegInSign;
+    const targetAscTrop = normalizeDeg(ascendantSidereal + ayanamsaDeg);
+    activeRamc = solveRamcForAscendant(targetAscTrop, input.latitude, obliquityDeg);
+    specialMethodInfo = {
+      methodId: 'akshara_prashna',
+      methodLabel: 'Akshara / Name Sound',
+      summary: `Sound Group ${grp} -> ${SIGNS[numSignIdx].name} Lagna`,
+    };
+  } else if (input.castingMode === 'mooka_prashna') {
+    specialMethodInfo = {
+      methodId: 'mooka_prashna',
+      methodLabel: 'Mooka Prashna (Silent Question)',
+      summary: `Inferred from Question Moment ${SIGNS[Math.floor(naturalAscSid / 30) % 12].name} Lagna`,
+    };
   }
 
   const baseAscSignIdx = Math.floor(normalizeDeg(ascendantSidereal) / 30) % 12;
@@ -665,21 +768,21 @@ export function computeHoraryChart(input: HoraryQueryInput): CastHoraryChart {
     kpLonDeg: null,
   };
 
-  const sunSidLon = normalizeDeg(tropMap.get('Sun')!.lon - ayanamsaDeg);
-
-  // Third-party rotation (e.g. "Will my son get a job?" -> rotate House 1 to 5th house)
+  // Third-party rotation (e.g. "Will my son/friend/neighbour get a job?" -> rotate House 1)
   const thirdPartyHouse = input.askingAboutHouse ?? 1;
   if (
     thirdPartyHouse > 1 &&
     (input.queryIndexInSession === 1 || input.multiQuestionMode === 'independent')
   ) {
     const personMap: Record<number, string> = {
-      3: 'Sibling / Younger Relative (House 3)',
-      4: 'Mother / Home Matter (House 4)',
-      5: 'Son / Daughter (House 5)',
-      7: 'Spouse / Partner (House 7)',
-      9: 'Father / Guru / Elder (House 9)',
-      10: 'Boss / Organization (House 10)',
+      3: input.askingAboutRole || 'Sibling / Neighbour (House 3)',
+      4: input.askingAboutRole || 'Mother / Home / Relative (House 4)',
+      5: input.askingAboutRole || 'Son / Daughter (House 5)',
+      6: input.askingAboutRole || 'Maternal Relative / Mama-Mausi (House 6)',
+      7: input.askingAboutRole || 'Spouse / Partner (House 7)',
+      9: input.askingAboutRole || 'Father / Guru / Elder (House 9)',
+      10: input.askingAboutRole || 'Boss / Organization (House 10)',
+      11: input.askingAboutRole || 'My Friend (House 11)',
     };
     const rotDeg = normalizeDeg(ascendantSidereal + (thirdPartyHouse - 1) * 30);
     const kpRotLon = normalizeDeg(rotDeg + effectiveAyanForHouses - kpAyanamsaDeg);
@@ -832,31 +935,7 @@ export function computeHoraryChart(input: HoraryQueryInput): CastHoraryChart {
     };
   });
 
-  // Sunrise, Sunset, Hora, Gulika, Panchanga, Eclipse, Sankranti
-  const observer = new Astronomy.Observer(input.latitude, input.longitude, 0);
-  const searchBack = new Astronomy.AstroTime(new Date(utcMs - 36 * 3600_000));
-  const rises: number[] = [];
-  const sets: number[] = [];
-  let rCursor = searchBack;
-  for (let i = 0; i < 3; i++) {
-    const r = Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, +1, rCursor, 2);
-    if (!r) break;
-    rises.push(r.date.getTime());
-    rCursor = r.AddDays(0.1);
-  }
-  let sCursor = searchBack;
-  for (let i = 0; i < 3; i++) {
-    const s = Astronomy.SearchRiseSet(Astronomy.Body.Sun, observer, -1, sCursor, 2);
-    if (!s) break;
-    sets.push(s.date.getTime());
-    sCursor = s.AddDays(0.1);
-  }
-
-  let sunriseMs = rises.filter((t) => t <= utcMs).pop() ?? utcMs - 6 * 3600_000;
-  let nextSunriseMs = rises.find((t) => t > utcMs) ?? sunriseMs + 24 * 3600_000;
-  let sunsetMs = sets.find((t) => t > sunriseMs && t < nextSunriseMs) ?? sunriseMs + 12 * 3600_000;
-  const isDaytime = utcMs >= sunriseMs && utcMs < sunsetMs;
-
+  // Vedic Weekday & Planetary Hora (sunrise/sunset already computed above)
   const vedicWeekdayIndex = getLocalWeekday(sunriseMs, input.timeZone);
   const vedicWeekdayName = WEEKDAY_NAMES[vedicWeekdayIndex];
   const dayLord = WEEKDAY_LORDS[vedicWeekdayIndex];
@@ -1100,5 +1179,9 @@ export function computeHoraryChart(input: HoraryQueryInput): CastHoraryChart {
     naturalAscendantSubLord: naturalAscKp.subLord,
     rotatedReference,
     prashna108Info,
+    horaLagnaSidereal,
+    horaLagnaSignIndex,
+    horaLagnaSignName,
+    specialMethodInfo,
   };
 }

@@ -4,7 +4,15 @@ export type NineGrahaId = SevenPlanetId | 'Rahu' | 'Ketu';
 export type AyanamsaId = 'kp' | 'lahiri' | 'raman' | 'true_chitra' | 'fagan_bradley' | 'tropical';
 export type HouseSystem = 'placidus' | 'whole_sign' | 'sripati' | 'equal';
 export type NodeMode = 'true' | 'mean';
-export type ChartCastingMode = 'time_lagna' | 'number_108' | 'kp_horary' | 'arudha_override';
+export type ChartCastingMode =
+  | 'time_lagna'
+  | 'number_108'
+  | 'kp_horary'
+  | 'arudha_override'
+  | 'hora_lagna'
+  | 'ashtamangala'
+  | 'mooka_prashna'
+  | 'akshara_prashna';
 
 export type QuestionCategory =
   | 'general_yes_no'
@@ -21,7 +29,9 @@ export type QuestionCategory =
   | 'education_exam'
   | 'blind_mook';
 
-export type SwaraNostril = 'unknown' | 'left_ida' | 'right_pingala';
+export type SwaraNostril = 'unknown' | 'left_ida' | 'right_pingala' | 'both_sushumna';
+export type SwaraPosition = 'unknown' | 'same_side' | 'opposite_side' | 'front';
+export type AskingAboutHouse = 1 | 3 | 4 | 5 | 6 | 7 | 9 | 10 | 11;
 
 export interface RuleSettings {
   mercuryCombustDeg: 8 | 14;
@@ -38,7 +48,8 @@ export interface HoraryQueryInput {
   category: QuestionCategory;
   queryIndexInSession: 1 | 2 | 3 | 4 | 5;
   multiQuestionMode?: 'rotate_chart' | 'independent';
-  askingAboutHouse?: 1 | 3 | 4 | 5 | 7 | 9 | 10;
+  askingAboutHouse?: AskingAboutHouse;
+  askingAboutRole?: string;
   localDate: string; // YYYY-MM-DD
   localTime: string; // HH:mm:ss
   latitude: number;
@@ -53,6 +64,7 @@ export interface HoraryQueryInput {
   houseSystem: HouseSystem;
   nodeMode: NodeMode;
   swaraNostril: SwaraNostril;
+  swaraPosition?: SwaraPosition;
   ashtamangalaPiles?: [number, number, number];
   tambulaCount?: number;
   pranaksharaNumber?: number;
@@ -271,5 +283,13 @@ export interface CastHoraryChart {
     navamsaNumber: number; // 1..9 remainder
     navamsaSignIndex: number; // 0..11 from Aries
     navamsaSignName: string;
+  };
+  horaLagnaSidereal: number;
+  horaLagnaSignIndex: number;
+  horaLagnaSignName: string;
+  specialMethodInfo?: {
+    methodId: ChartCastingMode;
+    methodLabel: string;
+    summary: string;
   };
 }

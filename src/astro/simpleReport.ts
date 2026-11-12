@@ -1,5 +1,6 @@
 import { SIGNS, WEEKDAY_LORDS, WEEKDAY_NAMES } from './constants';
 import type { CompleteHoraryAnalysis } from './horaryAnalyzer';
+import type { MethodLayerItem } from './domainPredictors';
 import {
   buildTailoredAnswerBundle,
   type FavourableDateWindow,
@@ -90,6 +91,27 @@ export interface SimpleHoraryReport {
     cleanRulingPlanets: NineGrahaId[];
     summaryText: string;
     specialNotes: string[];
+  };
+  methodSummary: {
+    methodLabel: string;
+    layers: MethodLayerItem[];
+    horaCard: {
+      activeHoraLabel: string;
+      horaLagnaLabel: string;
+      scorePct: number;
+      tone: 'good' | 'warn' | 'bad';
+      badgeText: string;
+      plainMeaning: string;
+      nextBestHoraNote: string;
+    };
+    swaraCard: {
+      checked: boolean;
+      nostrilLabel: string;
+      positionLabel: string;
+      tone: 'good' | 'warn' | 'bad' | 'info';
+      badgeText: string;
+      plainMeaning: string;
+    };
   };
   remediesSection: {
     required: boolean;
@@ -310,7 +332,9 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
     : chart.prashna108Info
     ? `${querentPrefix}Calculated from Number ${chart.prashna108Info.number} (${chart.prashna108Info.signsElapsed} signs elapsed → ${chart.prashna108Info.lagnaSignName} Lagna, Remainder ${chart.prashna108Info.navamsaNumber} → ${chart.prashna108Info.navamsaSignName} Navamsa) for ${topicMeta.fullLabel}.`
     : chart.input.castingMode === 'kp_horary' && chart.activeKpSlot
-    ? `${querentPrefix}Calculated from Horary Number ${chart.activeKpSlot.number} (${chart.activeKpSlot.signName} rising) for ${topicMeta.fullLabel}.`
+    ? `${querentPrefix}Calculated from KP Horary Number ${chart.activeKpSlot.number} (${chart.activeKpSlot.signName} rising) for ${topicMeta.fullLabel}.`
+    : chart.specialMethodInfo
+    ? `${querentPrefix}${chart.specialMethodInfo.summary} (${chart.ascendantSignName} rising) for ${topicMeta.fullLabel}.`
     : `${querentPrefix}Calculated for the question moment (${chart.ascendantSignName} rising) focusing on ${topicMeta.focusHousesPlain}.`;
 
   // 3. Question Clarity
@@ -325,60 +349,12 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
       : 'Mixed timing influences or hurried conditions are present at the moment of query. Read carefully, avoid rushing decisions, and double-check facts.',
   };
 
-  // 4. 4 Friendly Alignment Metrics
-  const keralaRawPct = Math.max(
-    15,
-    Math.min(
-      95,
-      85 -
-        kerala.bhavaRuin.totalRuinPoints * 5 +
-        (SIGNS[chart.ascendantSignIndex].udaya === 'Shirshodaya' ? 8 : -3)
-    )
-  );
-  const pillars = [
-    {
-      label: 'Core Result Promise',
-      status:
-        kp.domainEvaluation.verdict === 'Strong Yes'
-          ? 'Strong Yes'
-          : kp.domainEvaluation.verdict === 'Favourable with Delay'
-          ? 'Yes with Delay'
-          : kp.domainEvaluation.verdict === 'Denial / Unfavourable'
-          ? 'Blocked'
-          : 'Mixed',
-      scorePct: kp.domainEvaluation.scorePct,
-    },
-    {
-      label: 'Planetary Momentum',
-      status:
-        tajika.karyasiddhiTierPct >= 75
-          ? 'Supportive Flow'
-          : tajika.karyasiddhiTierPct >= 50
-          ? 'Requires Effort'
-          : 'Hindered',
-      scorePct: tajika.karyasiddhiTierPct,
-    },
-    {
-      label: 'House Strength',
-      status:
-        kerala.bhavaRuin.totalRuinPoints <= 3
-          ? 'Strong Foundation'
-          : kerala.bhavaRuin.totalRuinPoints <= 6
-          ? 'Moderate Support'
-          : 'Needs Care',
-      scorePct: keralaRawPct,
-    },
-    {
-      label: 'Planetary Balance',
-      status:
-        systemsApproach.saScorePct >= 65
-          ? 'Well Protected'
-          : systemsApproach.saScorePct >= 48
-          ? 'Some Stress'
-          : 'Sensitive Points Afflicted',
-      scorePct: systemsApproach.saScorePct,
-    },
-  ];
+  // 4. Key Method Drivers for Hero Chips (derived strictly from chosen calculation method)
+  const pillars = domain.methodLayers.slice(0, 4).map((l) => ({
+    label: l.layerName.replace(/^\d+\.\s*/, ''),
+    status: l.badgeText === 'Not Checked' ? 'Not Checked' : l.badgeText,
+    scorePct: l.scorePct ?? domain.unifiedScorePct,
+  }));
 
   const visibleFast = timing.hemisphereRate.hemisphere.includes('Visible');
   const paceLabel = visibleFast ? 'Faster Turnaround (Days to Weeks)' : 'Gradual Development (Weeks to Months)';
@@ -475,6 +451,12 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
   if (chart.input.category === 'general_yes_no' && classical.dailyQueryNote) {
     supportingPoints.push(classical.dailyQueryNote);
   }
+  if (domain.horaAnalysis.tone === 'good') {
+    supportingPoints.push(domain.horaAnalysis.plainMeaning);
+  }
+  if (domain.swaraAnalysis.checked && domain.swaraAnalysis.tone === 'good') {
+    supportingPoints.push(domain.swaraAnalysis.plainMeaning);
+  }
   if (supportingPoints.length === 0) {
     supportingPoints.push('Steady, organized follow-through builds gradual momentum over coming weeks.');
   }
@@ -487,6 +469,12 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
   }
   if (kp.domainEvaluation.retroMatrixCase !== 'Direct in Direct Star') {
     cautionPoints.push(retroDelayHint);
+  }
+  if (domain.horaAnalysis.tone === 'bad') {
+    cautionPoints.push(domain.horaAnalysis.plainMeaning);
+  }
+  if (domain.swaraAnalysis.checked && domain.swaraAnalysis.tone === 'bad') {
+    cautionPoints.push(domain.swaraAnalysis.plainMeaning);
   }
   const weakNotes = systemsApproach.planetProfiles
     .filter((pr) => systemsApproach.primeDeterminant.primePlanets.includes(pr.planet) && pr.isWeak)
@@ -940,6 +928,31 @@ export function buildSimpleHoraryReport(analysis: CompleteHoraryAnalysis): Simpl
       specialNotes: kp.domainEvaluation.readerVSpecialNotes
         .map(stripReferenceTags)
         .filter((s) => s.length > 4),
+    },
+    methodSummary: {
+      methodLabel: domain.activeMethodLabel,
+      layers: domain.methodLayers.map((layer) => ({
+        ...layer,
+        shortOutcome: stripReferenceTags(layer.shortOutcome),
+        plainMeaning: stripReferenceTags(layer.plainMeaning),
+      })),
+      horaCard: {
+        activeHoraLabel: `${domain.horaAnalysis.horaLord} Hora (#${domain.horaAnalysis.horaNumber} of 24)`,
+        horaLagnaLabel: `${domain.horaAnalysis.horaLagnaSignName}`,
+        scorePct: domain.horaAnalysis.horaScorePct,
+        tone: domain.horaAnalysis.tone,
+        badgeText: domain.horaAnalysis.badgeText,
+        plainMeaning: stripReferenceTags(domain.horaAnalysis.plainMeaning),
+        nextBestHoraNote: stripReferenceTags(domain.horaAnalysis.nextBestHoraNote),
+      },
+      swaraCard: {
+        checked: domain.swaraAnalysis.checked,
+        nostrilLabel: domain.swaraAnalysis.nostrilLabel,
+        positionLabel: domain.swaraAnalysis.positionLabel,
+        tone: domain.swaraAnalysis.tone,
+        badgeText: domain.swaraAnalysis.badgeText,
+        plainMeaning: stripReferenceTags(domain.swaraAnalysis.plainMeaning),
+      },
     },
     remediesSection: {
       required: needsRemedy,

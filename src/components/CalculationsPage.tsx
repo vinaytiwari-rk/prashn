@@ -1,14 +1,17 @@
 import React from 'react';
 import { Compass, Sparkles } from 'lucide-react';
 import type { CompleteHoraryAnalysis } from '../astro/horaryAnalyzer';
-import { getTopicMeta } from '../astro/questionCatalog';
+import { CASTING_METHOD_OPTIONS, getTopicMeta } from '../astro/questionCatalog';
+import { buildSimpleHoraryReport } from '../astro/simpleReport';
 import { formatOffsetString } from '../astro/time';
+import { evaluatePlanetMeaningTone } from './MeaningsGuidePage';
 import { VedicCharts } from './VedicCharts';
 
 interface CalculationsPageProps {
   analysis: CompleteHoraryAnalysis;
   totalQuestions?: number;
   onBackToBasicDetails?: () => void;
+  onGoToGuide?: () => void;
   onGoToPredictions?: () => void;
 }
 
@@ -16,16 +19,24 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
   analysis,
   totalQuestions = 1,
   onBackToBasicDetails,
+  onGoToGuide,
   onGoToPredictions,
 }) => {
   const { chart, kp, timing, classical } = analysis;
   const lms = chart.panchanga.lunarMicroStates;
   const topicMeta = getTopicMeta(chart.input.category);
   const kpEval = kp.domainEvaluation;
+  const report = buildSimpleHoraryReport(analysis);
+  const methodMeta = CASTING_METHOD_OPTIONS.find((m) => m.id === chart.input.castingMode);
+
+  const toneBadgeClass = (tone: 'good' | 'warn' | 'bad' | 'info') =>
+    tone === 'good' ? 'good' : tone === 'bad' ? 'bad' : tone === 'info' ? 'muted' : 'warn';
+  const toneShortLabel = (tone: 'good' | 'warn' | 'bad') =>
+    tone === 'good' ? 'Favourable' : tone === 'bad' ? 'Unfavourable' : 'Mixed / Effort';
 
   return (
     <div className="tab-stack">
-      {(onGoToPredictions || onBackToBasicDetails) && (
+      {(onGoToPredictions || onGoToGuide || onBackToBasicDetails) && (
         <div
           className="panel no-print"
           style={{
@@ -40,7 +51,7 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {onBackToBasicDetails && (
               <button type="button" className="btn-action" onClick={onBackToBasicDetails}>
-                ← 1. Edit Basic Details
+                ← 1. Basic Details
               </button>
             )}
             <div>
@@ -52,6 +63,8 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
               <span style={{ marginLeft: 10, opacity: 0.8, fontSize: '0.86rem' }}>
                 {chart.rotatedReference?.isRotated
                   ? chart.rotatedReference.reason
+                  : chart.specialMethodInfo
+                  ? chart.specialMethodInfo.summary
                   : chart.prashna108Info
                   ? `Number ${chart.prashna108Info.number} → ${chart.prashna108Info.lagnaSignName} Lagna & ${chart.prashna108Info.navamsaSignName} Navamsa`
                   : chart.activeKpSlot
@@ -60,16 +73,23 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
               </span>
             </div>
           </div>
-          {onGoToPredictions && (
-            <button
-              type="button"
-              className="seg-btn active"
-              onClick={onGoToPredictions}
-              style={{ padding: '8px 14px', borderRadius: 8 }}
-            >
-              3. Read Predictions &amp; Remedies →
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {onGoToGuide && (
+              <button type="button" className="btn-action" onClick={onGoToGuide}>
+                3. Rashi &amp; Planet Guide
+              </button>
+            )}
+            {onGoToPredictions && (
+              <button
+                type="button"
+                className="seg-btn active"
+                onClick={onGoToPredictions}
+                style={{ padding: '8px 14px', borderRadius: 8 }}
+              >
+                4. Read Predictions &amp; Remedies →
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -132,16 +152,40 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
             </strong>
           </div>
           <div>
-            <span>Day Ruler &amp; Active Hora</span>
+            <span>Day Ruler, Active Hora &amp; Hora Lagna</span>
             <strong>
-              {chart.panchanga.vedicWeekdayName} ({chart.panchanga.dayLord}) · {chart.panchanga.horaLord} Hora (#
-              {chart.panchanga.horaNumber})
+              {chart.panchanga.vedicWeekdayName} ({chart.panchanga.dayLord}) ·{' '}
+              {report.methodSummary.horaCard.activeHoraLabel} · {chart.horaLagnaSignName ?? report.methodSummary.horaCard.horaLagnaLabel}{' '}
+              <span className={`flag-tag ${toneBadgeClass(report.methodSummary.horaCard.tone)}`} style={{ marginLeft: 6 }}>
+                {report.methodSummary.horaCard.badgeText}
+              </span>
+            </strong>
+          </div>
+          <div>
+            <span>Calculation Method &amp; Nostril (Swara)</span>
+            <strong>
+              {methodMeta?.shortTag ?? chart.input.castingMode} · {report.methodSummary.swaraCard.nostrilLabel}{' '}
+              <span className={`flag-tag ${toneBadgeClass(report.methodSummary.swaraCard.tone)}`} style={{ marginLeft: 6 }}>
+                {report.methodSummary.swaraCard.badgeText}
+              </span>
             </strong>
           </div>
           <div>
             <span>Rising Sign Traits &amp; Strength</span>
             <strong>
               {classical.lagnaTraits.udayaType} · {classical.lagnaTraits.genderSign} · {classical.degreeOfSuccess.pct}%
+              <span
+                className={`flag-tag ${
+                  classical.degreeOfSuccess.pct >= 70 ? 'good' : classical.degreeOfSuccess.pct >= 45 ? 'warn' : 'bad'
+                }`}
+                style={{ marginLeft: 6 }}
+              >
+                {classical.degreeOfSuccess.pct >= 70
+                  ? 'Favourable'
+                  : classical.degreeOfSuccess.pct >= 45
+                  ? 'Mixed'
+                  : 'Unfavourable'}
+              </span>
             </strong>
           </div>
           {chart.input.querentName?.trim() && (
@@ -161,7 +205,7 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
           <div>
             <h3>Planetary Positions, KP Bhava Houses &amp; Sub-Lords</h3>
             <p className="panel-hint" style={{ marginBottom: 0 }}>
-              Combined zodiac positions, Rasi vs KP cuspal houses, Sign / Star / Sub lords, and KP house significations.
+              Combined zodiac positions, Rasi vs KP cuspal houses, Sign / Star / Sub lords, KP house significations, and colour-coded chart meanings.
             </p>
           </div>
         </div>
@@ -175,11 +219,13 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
                 <th>Star / Sub / Sub-Sub Lord</th>
                 <th>Signifies (KP Houses)</th>
                 <th>Strength &amp; Motion</th>
+                <th>Plain Chart Meaning</th>
               </tr>
             </thead>
             <tbody>
               {chart.planets.map((p) => {
                 const kpRow = kp.planets.find((k) => k.planet === p.id);
+                const planetMeaning = evaluatePlanetMeaningTone(p, topicMeta.focusHouses);
                 return (
                   <tr key={p.id}>
                     <td><strong>{p.id}</strong></td>
@@ -201,6 +247,12 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
                         <span className="flag-tag bad">Combust ({p.combustOrbDeg?.toFixed(1)}°)</span>
                       )}
                       {p.isVargottama && <span className="flag-tag good">Vargottama</span>}
+                    </td>
+                    <td>
+                      <span className={`flag-tag ${planetMeaning.tone}`} style={{ marginRight: 6 }}>
+                        {toneShortLabel(planetMeaning.tone)}
+                      </span>
+                      <span style={{ fontSize: '0.82rem', opacity: 0.9 }}>{planetMeaning.reason}</span>
                     </td>
                   </tr>
                 );
@@ -355,18 +407,30 @@ export const CalculationsPage: React.FC<CalculationsPageProps> = ({
                     <th>Ruler</th>
                     <th>Starts</th>
                     <th>Ends</th>
+                    <th>Chart Suitability</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {chart.panchanga.horaSchedule.map((h) => (
-                    <tr key={h.horaNumber} className={h.isActive ? 'row-active' : ''}>
-                      <td className="mono"><strong>#{h.horaNumber}</strong>{h.isActive ? ' (Now)' : ''}</td>
-                      <td>{h.period}</td>
-                      <td><strong>{h.lord}</strong></td>
-                      <td className="mono">{h.startLocal.slice(-8)}</td>
-                      <td className="mono">{h.endLocal.slice(-8)}</td>
-                    </tr>
-                  ))}
+                  {chart.panchanga.horaSchedule.map((h) => {
+                    const rulerPos = chart.planets.find((p) => p.id === h.lord);
+                    const rulerMeaning = rulerPos
+                      ? evaluatePlanetMeaningTone(rulerPos, topicMeta.focusHouses)
+                      : { tone: 'warn' as const, reason: 'Neutral' };
+                    return (
+                      <tr key={h.horaNumber} className={h.isActive ? 'row-active' : ''}>
+                        <td className="mono"><strong>#{h.horaNumber}</strong>{h.isActive ? ' (Now)' : ''}</td>
+                        <td>{h.period}</td>
+                        <td><strong>{h.lord}</strong></td>
+                        <td className="mono">{h.startLocal.slice(-8)}</td>
+                        <td className="mono">{h.endLocal.slice(-8)}</td>
+                        <td>
+                          <span className={`flag-tag ${rulerMeaning.tone}`}>
+                            {toneShortLabel(rulerMeaning.tone)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
